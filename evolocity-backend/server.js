@@ -1,17 +1,15 @@
 import 'dotenv/config';
-import express from 'express';
-import cors from 'cors';
+import { createServer } from 'http';
+import app from './app.js';
+import { initWebSocket } from './websocket.js';
 
-const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors());
-app.use(express.json());
+const server = createServer(app);
 
-app.get('/', (req, res) => {
-  res.json({ message: 'EVolocity backend is currently running.' });
-});
+initWebSocket(server);
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Backend running at http://localhost:${PORT}`);
+  console.log(`WebSocket ready at ws://localhost:${PORT}`);
 });
