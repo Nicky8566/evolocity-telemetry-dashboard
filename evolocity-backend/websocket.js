@@ -1,5 +1,5 @@
 import { WebSocketServer } from 'ws';
-import { insertValue } from './db.js'; 
+import { saveCounter } from './services/valueServices.js';
 
 let counter = 0;
 
@@ -17,8 +17,7 @@ export function initWebSocket(server) {
 
   setInterval(() => {
     counter++;
-    // insert value to db every tick
-    insertValue(counter);  
+    saveCounter(counter);
     broadcast(wss, {
       type: 'counter',
       message: `Hello, this message is from the backend. The number right now is at: ${counter}`,

@@ -48,3 +48,8 @@ export function getAllValues() {
     Object.fromEntries(columns.map((col, i) => [col, row[i]]))
   );
 }
+
+export function clearAllValues() {
+  db.run('DELETE FROM counter_log');
+  persist();
+}
