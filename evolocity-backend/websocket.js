@@ -1,5 +1,5 @@
 import { WebSocketServer } from 'ws';
-import { saveCounter } from './services/valueServices.js';
+import { saveCounter } from './src/services/valueServices.js';
 
 let counter = 0;
 

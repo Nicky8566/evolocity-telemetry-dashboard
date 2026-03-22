@@ -1,8 +1,8 @@
 import 'dotenv/config';
 import { createServer } from 'http';
-import app from './app.js';
+import app from './src/app.js';
 import { initWebSocket } from './websocket.js';
-import { initDb } from './database/db.js';
+import { initDb } from './src/database/db.js';
 
 const PORT = process.env.PORT || 3001;
 
