@@ -1,11 +1,13 @@
 import { WebSocketServer } from 'ws';
-import { saveCounter } from './src/services/valueServices.js';
+// import { saveCounter } from './src/services/counterService.js';
 
 let counter = 0;
+let _wss = null;  // module-level reference so broadcast() can use it anywhere
 
-function broadcast(wss, data) {
+export function broadcast(data) {
+  if (!_wss) return;
   const message = JSON.stringify(data);
-  wss.clients.forEach(client => {
+  _wss.clients.forEach(client => {
     if (client.readyState === 1) {
       client.send(message);
     }
@@ -14,18 +16,19 @@ function broadcast(wss, data) {
 
 export function initWebSocket(server) {
   const wss = new WebSocketServer({ server });
+  _wss = wss;  // store reference for broadcast()
 
-  setInterval(() => {
-    counter++;
-    saveCounter(counter);
-    broadcast(wss, {
-      type: 'counter',
-      message: `Hello, this message is from the backend. The number right now is at: ${counter}`,
-      value: counter,
-      timestamp: new Date().toISOString()
-    });
-    console.log(`Counter: ${counter}`);
-  }, 1000);
+  // setInterval(() => {
+  //   counter++;
+  //   saveCounter(counter);
+  //   broadcast({
+  //     type: 'counter',
+  //     message: `Hello, this message is from the backend. The number right now is at: ${counter}`,
+  //     value: counter,
+  //     timestamp: new Date().toISOString()
+  //   });
+  //   console.log(`Counter: ${counter}`);
+  // }, 1000);
 
   wss.on('connection', (ws) => {
     console.log('Frontend connected via WebSocket');

@@ -15,11 +15,26 @@ export async function initDb() {
     db = new SQL.Database();
   }
 
+  // Counter table (placeholder, will be removed later)
   db.run(`
     CREATE TABLE IF NOT EXISTS counter_log (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
       value       INTEGER NOT NULL,
       recorded_at TEXT NOT NULL
+    )
+  `);
+
+  // ECU data table — matches simulator field names
+  db.run(`
+    CREATE TABLE IF NOT EXISTS ecu_data (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      ecu_serial      INTEGER NOT NULL,
+      timestamp       TEXT NOT NULL,
+      voltage_samples TEXT NOT NULL,
+      avg_voltage     REAL NOT NULL,
+      avg_current     REAL,
+      penalty         INTEGER DEFAULT 0,
+      recorded_at     TEXT NOT NULL
     )
   `);
 
@@ -31,6 +46,8 @@ function persist() {
   const data = db.export();
   fs.writeFileSync(DB_PATH, Buffer.from(data));
 }
+
+// ── Counter (placeholder) ─────────────────────────────────────────────────────
 
 export function insertValue(value) {
   db.run(
@@ -52,4 +69,35 @@ export function getAllValues() {
 export function clearAllValues() {
   db.run('DELETE FROM counter_log');
   persist();
+}
+
+// ── ECU Data ──────────────────────────────────────────────────────────────────
+
+export function insertECUFrame(frame) {
+  db.run(
+    `INSERT INTO ecu_data
+      (ecu_serial, timestamp, voltage_samples, avg_voltage, avg_current, penalty, recorded_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [
+      frame.ecu_serial,
+      frame.timestamp,
+      JSON.stringify(frame.voltage_samples),  // store array as JSON string
+      frame.avg_voltage,
+      frame.avg_current ?? null,
+      frame.penalty ? 1 : 0,
+      new Date().toISOString()
+    ]
+  );
+  persist();
+}
+
+export function getAllECUFrames() {
+  const result = db.exec('SELECT * FROM ecu_data ORDER BY id ASC');
+  if (result.length === 0) return [];
+  const { columns, values } = result[0];
+  return values.map(row => {
+    const obj = Object.fromEntries(columns.map((col, i) => [col, row[i]]));
+    obj.voltage_samples = JSON.parse(obj.voltage_samples); // parse back to array
+    return obj;
+  });
 }
