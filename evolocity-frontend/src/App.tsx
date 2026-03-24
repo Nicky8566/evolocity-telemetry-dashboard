@@ -10,6 +10,9 @@ import {
 } from "recharts";
 import { useEffect, useMemo, useState } from "react";
 
+
+const WS_URL = import.meta.env.VITE_WS_URL ?? "ws://localhost:3001";
+
 type Point = {
   time: string;
   voltage: number;
@@ -53,11 +56,12 @@ function App() {
   const latestPoint = selectedData[selectedData.length - 1];
 
   useEffect(() => {
-    const ws = new WebSocket("ws://localhost:3001");
+    const ws = new WebSocket(WS_URL);
 
     ws.onopen = () => {
       setConnected(true);
       console.log("Connected to backend");
+      console.log("Using WebSocket URL:", WS_URL);
     };
 
     ws.onmessage = (event) => {
