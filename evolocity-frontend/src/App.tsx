@@ -1,139 +1,105 @@
-import { useEffect, useState, useRef } from 'react'
+import "./App.css";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
+import { useMemo, useState } from "react";
 
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001'
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001'
+type Point = {
+  time: string;
+  voltage: number;
+};
 
-interface Message {
-  type: string
-  message: string
-  value?: number
-  timestamp: string
-}
+type BoardData = Record<string, Point[]>;
 
-interface HistoryRow {
-  id: number
-  value: number
-  recorded_at: string
-}
+const mockBoardData: BoardData = {
+  "ESP32-01": [
+    { time: "00.1", voltage: 12.1 },
+    { time: "00.2", voltage: 12.2 },
+    { time: "00.3", voltage: 12.0 },
+    { time: "00.4", voltage: 12.4 },
+    { time: "00.5", voltage: 12.3 },
+    { time: "00.6", voltage: 12.5 },
+  ],
+  "ESP32-02": [
+    { time: "00.1", voltage: 11.8 },
+    { time: "00.2", voltage: 11.9 },
+    { time: "00.3", voltage: 12.0 },
+    { time: "00.4", voltage: 11.7 },
+    { time: "00.5", voltage: 11.9 },
+    { time: "00.6", voltage: 12.1 },
+  ],
+};
 
 function App() {
-  const [status, setStatus] = useState('Connecting...')
-  const [liveMessage, setLiveMessage] = useState<Message | null>(null)
-  const [history, setHistory] = useState<HistoryRow[]>([])
-  const wsRef = useRef<WebSocket | null>(null)
-  const connectedRef = useRef(false) // prevents double connection in React Strict Mode
+  const [connected] = useState(false);
+  const [selectedBoard, setSelectedBoard] = useState("ESP32-01");
+  const [boardData] = useState<BoardData>(mockBoardData);
 
-  // REST API — fetch past data once on page load
-  useEffect(() => {
-    fetch(`${BACKEND_URL}/api/counter/history`)
-      .then(res => res.json())
-      .then(json => setHistory(json.data || []))
-      .catch(() => console.error('Could not fetch history'))
-  }, [])
+  const boardIds = Object.keys(boardData);
 
-  // WebSocket — live updates
-  useEffect(() => {
-    if (connectedRef.current) return // stop double connect in Strict Mode
-    connectedRef.current = true
+  const selectedData = useMemo(() => {
+    return boardData[selectedBoard] ?? [];
+  }, [boardData, selectedBoard]);
 
-    function connect() {
-      const ws = new WebSocket(WS_URL)
-      wsRef.current = ws
-
-      ws.onopen = () => setStatus('Connected to backend')
-
-      ws.onmessage = (event) => {
-        const msg: Message = JSON.parse(event.data)
-        if (msg.type === 'counter') {
-          setLiveMessage(msg)
-          setHistory(prev => {
-            // prevent duplicate if value already exists
-            if (prev.some(r => r.value === msg.value)) return prev
-            return [...prev, {
-              id: msg.value!,
-              value: msg.value!,
-              recorded_at: msg.timestamp
-            }]
-          })
-        }
-        if (msg.type === 'hello') {
-          setLiveMessage(msg)
-        }
-      }
-
-      ws.onclose = () => {
-        setStatus('Disconnected — retrying in 3s...')
-        setTimeout(connect, 3000)
-      }
-
-      ws.onerror = () => ws.close()
-    }
-
-    connect()
-    return () => {
-      wsRef.current?.close()
-    }
-  }, [])
-
-  // Reset — clears DB via REST, clears frontend state
-  function handleReset() {
-    fetch(`${BACKEND_URL}/api/counter/reset`, { method: 'DELETE' })
-      .then(res => res.json())
-      .then(() => {
-        setHistory([])
-        setLiveMessage(null)
-      })
-      .catch(() => console.error('Reset failed'))
-  }
+  const latestPoint = selectedData[selectedData.length - 1];
 
   return (
-    <div style={{ fontFamily: 'sans-serif', maxWidth: 700, margin: '40px auto', padding: '0 20px', color: '#111' }}>
-      <h1>EVolocity Dashboard</h1>
-      <p style={{ color: '#f0f4ff' }}><strong>Status:</strong> {status}</p>
-
-      <div style={{ background: '#f0f4ff', padding: 16, borderRadius: 8, marginBottom: 24 }}>
-        <h2 style={{ color: '#111' }}>Live (WebSocket)</h2>
-        {liveMessage ? (
-          <>
-            <p style={{ fontSize: 18, color: '#111' }}>{liveMessage.message}</p>
-            <p style={{ color: '#555', fontSize: 12 }}>{liveMessage.timestamp}</p>
-          </>
-        ) : (
-          <p style={{ color: '#111' }}>Waiting for data...</p>
-        )}
-      </div>
-
-      <div style={{ background: '#f9f9f9', padding: 16, borderRadius: 8 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <h2 style={{ color: '#111', margin: 0 }}>History (REST API + live)</h2>
-          <button
-            onClick={handleReset}
-            style={{
-              background: '#e53e3e',
-              color: '#fff',
-              border: 'none',
-              borderRadius: 6,
-              padding: '6px 14px',
-              cursor: 'pointer',
-              fontWeight: 'bold'
-            }}
-          >
-            Reset
-          </button>
-        </div>
-        <p style={{ color: '#555', fontSize: 13 }}>
-          Past values loaded from SQLite via REST on page load. New values appended live via WebSocket.
+    <div className="app">
+      <header className="header">
+        <h1>EVolocity Telemetry Viewer</h1>
+        <p className="status">
+          Status: {connected ? "Connected" : "Disconnected"}
         </p>
-        <div style={{ maxHeight: 250, overflowY: 'auto', fontFamily: 'monospace', fontSize: 13, color: '#111' }}>
-          {history.length === 0 ? <p style={{ color: '#111' }}>No history yet.</p> : (
-            history.map((row, i) => (
-              <div key={i} style={{ color: '#111' }}>[{row.recorded_at}] value = {row.value}</div>
-            ))
-          )}
+      </header>
+
+      <section className="panel">
+        <h2>Select Board</h2>
+        <div className="board-buttons">
+          {boardIds.map((boardId) => (
+            <button
+              key={boardId}
+              className={boardId === selectedBoard ? "board-button active" : "board-button"}
+              onClick={() => setSelectedBoard(boardId)}
+            >
+              {boardId}
+            </button>
+          ))}
         </div>
-      </div>
+      </section>
+
+      <section className="panel highlight">
+        <h2>Live Voltage</h2>
+        <p className="board-label">Viewing: {selectedBoard}</p>
+        <div className="voltage-value">
+          {latestPoint ? `${latestPoint.voltage.toFixed(2)} V` : "No data"}
+        </div>
+        <p className="timestamp">
+          Last update: {latestPoint ? latestPoint.time : "--"}
+        </p>
+      </section>
+
+      <section className="panel chart-panel">
+        <h2>Voltage Graph</h2>
+        <div className="chart-wrapper">
+          <ResponsiveContainer width="100%" height={320}>
+            <LineChart data={selectedData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="time" />
+              <YAxis domain={["auto", "auto"]} />
+              <Tooltip />
+              <Line type="monotone" dataKey="voltage" stroke="#00A5C8" dot={false} strokeWidth={3} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;
