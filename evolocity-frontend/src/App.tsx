@@ -21,59 +21,72 @@ type Point = {
 
 type BoardData = Record<string, Point[]>;
 
-const mockBoardData: BoardData = {
-  "ESP32-01": [
-    { time: "00.1", voltage: 12.1 },
-    { time: "00.2", voltage: 12.2 },
-    { time: "00.3", voltage: 12.0 },
-    { time: "00.4", voltage: 12.4 },
-    { time: "00.5", voltage: 12.3 },
-    { time: "00.6", voltage: 12.5 },
-  ],
-  "ESP32-02": [
-    { time: "00.1", voltage: 11.8 },
-    { time: "00.2", voltage: 11.9 },
-    { time: "00.3", voltage: 12.0 },
-    { time: "00.4", voltage: 11.7 },
-    { time: "00.5", voltage: 11.9 },
-    { time: "00.6", voltage: 12.1 },
-  ],
-};
+interface ECUFrame {
+  ecu_serial: number;
+  timestamp: string;
+  voltage_samples: number[];
+  avg_voltage: number;
+  avg_current: number | null;
+  penalty: boolean;
+}
+
+interface HistoryRow {
+  id: number;
+  ecu_serial: number;
+  timestamp: string;
+  avg_voltage: number;
+  penalty: number;
+  recorded_at: string;
+}
 
 function App() {
   const [connected, setConnected] = useState(false);
-  const [selectedBoard, setSelectedBoard] = useState("ESP32-01");
+  const [selectedBoard, setSelectedBoard] = useState("");
   const [boardData, setBoardData] = useState<BoardData>({});
-  const isEmpty = Object.keys(boardData).length === 0;
-  const boardIds = isEmpty
-    ? Object.keys(mockBoardData)
-    : Object.keys(boardData);
+  const [latestFrame, setLatestFrame] = useState<ECUFrame | null>(null);
+
+  const boardIds = Object.keys(boardData);
 
   const selectedData = useMemo(() => {
-    if (isEmpty) return mockBoardData[selectedBoard] ?? [];
     return boardData[selectedBoard] ?? [];
-  }, [boardData, selectedBoard, isEmpty]);
+  }, [boardData, selectedBoard]);
 
   const latestPoint = selectedData[selectedData.length - 1];
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/counter/history`)
+    fetch(`${API_BASE_URL}/ecu/history`)
       .then((res) => res.json())
-      .then((data) => {
-        const points = data.map((item: { value: number }, index: number) => ({
-          time: index.toString(),
-          voltage: item.value,
-        }));
+      .then((json) => {
+        const rows: HistoryRow[] = json.data ?? [];
 
-        if (points.length > 0) {
-          setBoardData({
-            "ESP32-01": points,
+        if (rows.length === 0) return;
+
+        const grouped: BoardData = {};
+
+        rows.forEach((row) => {
+          const boardId = `ECU-${row.ecu_serial}`;
+
+          if (!grouped[boardId]) {
+            grouped[boardId] = [];
+          }
+
+          grouped[boardId].push({
+            time: new Date(row.timestamp).toLocaleTimeString(),
+            voltage: row.avg_voltage,
           });
+        });
+
+        setBoardData(grouped);
+
+        const firstBoard = Object.keys(grouped)[0];
+        if (firstBoard) {
+          setSelectedBoard(firstBoard);
         }
       })
       .catch((err) => {
-        console.error("Failed to load history:", err);
+        console.error("Failed to load ECU history:", err);
       });
+
     const ws = new WebSocket(WS_URL);
 
     ws.onopen = () => {
@@ -86,28 +99,36 @@ function App() {
       try {
         const msg = JSON.parse(event.data);
 
-        if (msg.type !== "telemetry") return;
+        if (msg.type === "hello") {
+          setConnected(true);
+          return;
+        }
 
-        const { espSerial, averageVoltage, timestamp } = msg;
+        if (msg.type !== "ecu_frame") return;
+
+        const frame: ECUFrame = msg.data;
+        setLatestFrame(frame);
+
+        const boardId = `ECU-${frame.ecu_serial}`;
 
         setBoardData((prev) => {
-          const existing = prev[espSerial] ?? [];
+          const existing = prev[boardId] ?? [];
 
           const updated = [
             ...existing,
             {
-              time: new Date(timestamp).toLocaleTimeString(),
-              voltage: averageVoltage,
+              time: new Date(frame.timestamp).toLocaleTimeString(),
+              voltage: frame.avg_voltage,
             },
           ].slice(-100);
 
           return {
             ...prev,
-            [espSerial]: updated,
+            [boardId]: updated,
           };
         });
 
-        setSelectedBoard((prev) => prev || espSerial);
+        setSelectedBoard((prev) => prev || boardId);
       } catch (err) {
         console.error("Invalid WebSocket message:", err);
       }
@@ -133,6 +154,9 @@ function App() {
         <h1>EVolocity Telemetry Viewer</h1>
         <p className="status">
           Status: {connected ? "Connected" : "Disconnected"}
+        </p>
+        <p className="timestamp">
+          Boards detected: {boardIds.length > 0 ? boardIds.join(", ") : "None"}
         </p>
       </header>
 
@@ -164,6 +188,11 @@ function App() {
         <p className="timestamp">
           Last update: {latestPoint ? latestPoint.time : "--"}
         </p>
+        {latestFrame && (
+          <p className="timestamp">
+            Latest ECU frame serial: {latestFrame.ecu_serial}
+          </p>
+        )}
       </section>
 
       <section className="panel chart-panel">

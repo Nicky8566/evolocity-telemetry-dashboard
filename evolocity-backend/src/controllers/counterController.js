@@ -1,4 +1,4 @@
-import { getHistory, resetHistory } from '../services/valueServices.js';
+import { getHistory, resetHistory } from '../services/counterService.js';
 
 export function getCounterHistory(req, res) {
   const rows = getHistory();

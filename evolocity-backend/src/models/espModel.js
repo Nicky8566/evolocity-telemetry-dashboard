@@ -1,48 +1,19 @@
-// ESPModel — defines the structure of ESP32 ECU data stored in the database
-// This is the equivalent of a Mongoose schema for our SQLite setup
+// espModel.js — defines the shape of an ESP32 ECU energy frame
+// Field names match the Python simulator (and will match the real ESP32)
 
-export const ESP_TABLE = 'ecu_data';
-
-// Shape of an ECU data record (for reference and validation)
 export const ECUSchema = {
-  // Configuration
-  serial_number: 'INTEGER',   // unique identifier for each ECU
-  team_number: 'INTEGER',     // team this ECU belongs to
-  vehicle_class: 'TEXT',      // 'standard' (350W) or 'open' (2kW)
-  vehicle_type: 'TEXT',       // 'bike' or 'kart'
-
-  // Energy Frame
-  timestamp: 'TEXT',          // when this frame was recorded
-  avg_voltage: 'REAL',        // average voltage (up to 60V)
-  avg_current: 'REAL',        // average current (bi-directional, up to 100A)
-  energy: 'REAL',             // energy since last frame (Wh)
-
-  // Status
-  flash_usage: 'INTEGER',     // flash memory usage
-  internal_temp: 'REAL',      // internal temperature of ECU
-
-  // Penalty flag
-  penalty: 'INTEGER',         // 0 = no penalty, 1 = exceeded power limit
-  recorded_at: 'TEXT',        // when server received this record
+  ecu_serial:      'INTEGER',  // unique identifier of the ESP32 sending the data
+  timestamp:       'TEXT',     // ISO timestamp from simulator / time from boot on real ESP32
+  voltage_samples: 'TEXT',     // JSON array of 10 raw ADC readings in millivolts (0-3300mV)
+  avg_voltage:     'REAL',     // scaled real voltage calculated by server (V_real = 22.3 * V_sens)
+  avg_current:     'REAL',     // scaled real current — not yet sent, placeholder
+  penalty:         'INTEGER',  // 0 = fine, 1 = exceeded 2kW power limit
+  recorded_at:     'TEXT',     // ISO timestamp of when server received the frame
 };
 
-// Creates the table in SQLite if it doesn't exist
-export function createECUTable(db) {
-  db.run(`
-    CREATE TABLE IF NOT EXISTS ${ESP_TABLE} (
-      id             INTEGER PRIMARY KEY AUTOINCREMENT,
-      serial_number  INTEGER NOT NULL,
-      team_number    INTEGER NOT NULL,
-      vehicle_class  TEXT CHECK(vehicle_class IN ('standard', 'open')) NOT NULL,
-      vehicle_type   TEXT CHECK(vehicle_type IN ('bike', 'kart')) NOT NULL,
-      timestamp      TEXT NOT NULL,
-      avg_voltage    REAL NOT NULL,
-      avg_current    REAL NOT NULL,
-      energy         REAL NOT NULL,
-      flash_usage    INTEGER,
-      internal_temp  REAL,
-      penalty        INTEGER DEFAULT 0,
-      recorded_at    TEXT NOT NULL
-    )
-  `);
-}
+// Expected POST body from simulator / ESP32:
+// {
+//   ecu_serial: 12345,
+//   timestamp: "2026-03-25T00:00:00.000Z",
+//   voltage_samples: [2200, 2250, 2230, 2210, 2260, 2240, 2220, 2270, 2250, 2230]
+// }
