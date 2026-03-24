@@ -8,7 +8,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type Point = {
   time: string;
@@ -37,17 +37,73 @@ const mockBoardData: BoardData = {
 };
 
 function App() {
-  const [connected] = useState(false);
+  const [connected, setConnected] = useState(false);
   const [selectedBoard, setSelectedBoard] = useState("ESP32-01");
-  const [boardData] = useState<BoardData>(mockBoardData);
-
-  const boardIds = Object.keys(boardData);
+  const [boardData, setBoardData] = useState<BoardData>({});
+  const isEmpty = Object.keys(boardData).length === 0;
+  const boardIds = isEmpty
+    ? Object.keys(mockBoardData)
+    : Object.keys(boardData);
 
   const selectedData = useMemo(() => {
+    if (isEmpty) return mockBoardData[selectedBoard] ?? [];
     return boardData[selectedBoard] ?? [];
-  }, [boardData, selectedBoard]);
+  }, [boardData, selectedBoard, isEmpty]);
 
   const latestPoint = selectedData[selectedData.length - 1];
+
+  useEffect(() => {
+    const ws = new WebSocket("ws://localhost:3001");
+
+    ws.onopen = () => {
+      setConnected(true);
+      console.log("Connected to backend");
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+
+        if (msg.type !== "telemetry") return;
+
+        const { espSerial, averageVoltage, timestamp } = msg;
+
+        setBoardData((prev) => {
+          const existing = prev[espSerial] ?? [];
+
+          const updated = [
+            ...existing,
+            {
+              time: new Date(timestamp).toLocaleTimeString(),
+              voltage: averageVoltage,
+            },
+          ].slice(-100);
+
+          return {
+            ...prev,
+            [espSerial]: updated,
+          };
+        });
+
+        setSelectedBoard((prev) => prev || espSerial);
+      } catch (err) {
+        console.error("Invalid WebSocket message:", err);
+      }
+    };
+
+    ws.onclose = () => {
+      setConnected(false);
+      console.log("WebSocket disconnected");
+    };
+
+    ws.onerror = () => {
+      setConnected(false);
+    };
+
+    return () => {
+      ws.close();
+    };
+  }, []);
 
   return (
     <div className="app">
@@ -64,7 +120,11 @@ function App() {
           {boardIds.map((boardId) => (
             <button
               key={boardId}
-              className={boardId === selectedBoard ? "board-button active" : "board-button"}
+              className={
+                boardId === selectedBoard
+                  ? "board-button active"
+                  : "board-button"
+              }
               onClick={() => setSelectedBoard(boardId)}
             >
               {boardId}
@@ -93,7 +153,13 @@ function App() {
               <XAxis dataKey="time" />
               <YAxis domain={["auto", "auto"]} />
               <Tooltip />
-              <Line type="monotone" dataKey="voltage" stroke="#00A5C8" dot={false} strokeWidth={3} />
+              <Line
+                type="monotone"
+                dataKey="voltage"
+                stroke="#00A5C8"
+                dot={false}
+                strokeWidth={3}
+              />
             </LineChart>
           </ResponsiveContainer>
         </div>
