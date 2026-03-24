@@ -10,8 +10,9 @@ import {
 } from "recharts";
 import { useEffect, useMemo, useState } from "react";
 
-
 const WS_URL = import.meta.env.VITE_WS_URL ?? "ws://localhost:3001";
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001/api";
 
 type Point = {
   time: string;
@@ -56,6 +57,23 @@ function App() {
   const latestPoint = selectedData[selectedData.length - 1];
 
   useEffect(() => {
+    fetch(`${API_BASE_URL}/counter/history`)
+      .then((res) => res.json())
+      .then((data) => {
+        const points = data.map((item: { value: number }, index: number) => ({
+          time: index.toString(),
+          voltage: item.value,
+        }));
+
+        if (points.length > 0) {
+          setBoardData({
+            "ESP32-01": points,
+          });
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to load history:", err);
+      });
     const ws = new WebSocket(WS_URL);
 
     ws.onopen = () => {
