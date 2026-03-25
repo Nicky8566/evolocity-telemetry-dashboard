@@ -11,7 +11,7 @@ import time
 from datetime import datetime, timezone
 import requests
 
-BACKEND_URL = "http://172.23.108.5:3001/api/data"   # fixed to match our Express backend
+BACKEND_URL = "http://localhost:3001/api/data"   # fixed to match our Express backend
 ECU_SERIAL = 12345
 INTERVAL = 0.1   # seconds
 NUM_SAMPLES = 10  # ADC samples per frame

@@ -6,7 +6,7 @@ export function receiveECUData(req, res) {
   console.log('Body:', req.body); 
   const payload = req.body;
 
-  // Simulator sends: ecu_serial, timestamp, voltage_samples
+  // Simulator sends: ecu_serial, timestamp, voltage_samples (need to check naming convetions)
   if (!payload.ecu_serial || !payload.timestamp || !Array.isArray(payload.voltage_samples)) {
     return res.status(400).json({ error: 'Missing required fields: ecu_serial, timestamp, voltage_samples' });
   }
