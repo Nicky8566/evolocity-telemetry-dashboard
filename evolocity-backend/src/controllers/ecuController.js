@@ -2,6 +2,8 @@ import { processECUFrame, getECUHistory } from '../services/ecuService.js';
 import { broadcast } from '../../websocket.js';
 
 export function receiveECUData(req, res) {
+  console.log('Headers:', req.headers);
+  console.log('Body:', req.body); 
   const payload = req.body;
 
   // Simulator sends: ecu_serial, timestamp, voltage_samples
