@@ -1,6 +1,6 @@
 import { insertECUFrame, getAllECUFrames } from '../database/db.js';
 
-// Scaling formula from electrical team (Leo)
+// Scaling formula from electrical team 
 // V_real = 22.3 * V_sens  (V_sens in volts, so divide millivolts by 1000)
 function scaleVoltage(millivolts) {
   const V_sens = millivolts / 1000;   // convert mV → V
@@ -13,7 +13,7 @@ export function processECUFrame(payload) {
   // Average the 10 raw millivolt readings
   const avgRawMv = voltage_samples.reduce((sum, v) => sum + v, 0) / voltage_samples.length;
 
-  // Scale to real voltage using Leo's formula
+  // Scale to real voltage using  formula
   const avg_voltage = scaleVoltage(avgRawMv);
 
   // Current not yet sent by ESP32 — placeholder for when compsys adds it

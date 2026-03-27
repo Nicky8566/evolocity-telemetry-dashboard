@@ -11,7 +11,7 @@ import time
 from datetime import datetime, timezone
 import requests
 
-BACKEND_URL = "http://localhost:3001/api/data"   # fixed to match our Express backend
+BACKEND_URL = "http://172.20.10.3:3001/api/data"   # fixed to match our Express backend
 ECU_SERIAL = 12345
 INTERVAL = 0.1   # seconds
 NUM_SAMPLES = 10  # ADC samples per frame
@@ -27,10 +27,11 @@ def random_adc_samples(center: int, spread: int) -> list[int]:
 def send_frame():
     # Simulate voltage in millivolts (0-3300 mV = 0-3.3V ADC range)
     voltage_samples = random_adc_samples(center=2250, spread=50)
+    time_ms = random_adc_samples(center=2250, spread=50)
 
     payload = {
         "ecu_serial": ECU_SERIAL,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": 220000,
         "voltage_samples": voltage_samples,
     }
 

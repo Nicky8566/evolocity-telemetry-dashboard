@@ -117,7 +117,9 @@ function App() {
           const updated = [
             ...existing,
             {
-              time: new Date(frame.timestamp).toLocaleTimeString(),
+              // change from utc to ms for now as we getting ms
+              // time: new Date(frame.timestamp).toLocaleTimeString(),
+              time: `${frame.timestamp}ms`,
               voltage: frame.avg_voltage,
             },
           ].slice(-100);
