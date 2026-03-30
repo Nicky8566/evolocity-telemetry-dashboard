@@ -11,24 +11,24 @@ export function processECUFrame(payload) {
   const { ecu_serial, timestamp, voltage_samples } = payload;
 
   // Average the 10 raw millivolt readings
-  const avgRawMv = voltage_samples.reduce((sum, v) => sum + v, 0) / voltage_samples.length;
+  // const avgRawMv = voltage_samples.reduce((sum, v) => sum + v, 0) / voltage_samples.length;
+  // const avg_voltage = scaleVoltage(avgRawMv);
 
-  // Scale to real voltage using  formula
-  const avg_voltage = scaleVoltage(avgRawMv);
+  // Scale each sample individually
+  const scaled_samples = voltage_samples.map(mv => scaleVoltage(mv));
+  const avg_voltage = scaled_samples.reduce((sum, v) => sum + v, 0) / scaled_samples.length; // keep for DB schema compat
 
-  // Current not yet sent by ESP32 — placeholder for when compsys adds it
   const avg_current = payload.current_mv != null
     ? (payload.current_mv / 1000 - 1.65) / 0.01037
     : null;
 
-  // Penalty check — open class limit is 2000W
   const power = avg_current != null ? avg_voltage * avg_current : null;
   const penalty = power != null && power > 2000;
 
   const frame = {
     ecu_serial,
     timestamp,
-    voltage_samples,
+    voltage_samples: scaled_samples, // now scaled individually
     avg_voltage,
     avg_current,
     penalty
