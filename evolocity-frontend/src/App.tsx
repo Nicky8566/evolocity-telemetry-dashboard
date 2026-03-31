@@ -71,7 +71,7 @@ function App() {
           }
 
           grouped[boardId].push({
-            time: new Date(row.timestamp).toLocaleTimeString(),
+            time: `${row.timestamp}ms`,
             voltage: row.avg_voltage,
           });
         });
@@ -111,21 +111,18 @@ function App() {
 
         const boardId = `ECU-${frame.ecu_serial}`;
 
+        // Push all 10 samples at once
+        const newPoints = frame.voltage_samples.map((v, i) => ({
+          time: `${Number(frame.timestamp) + i * 10}ms`,
+          voltage: v,
+        }));
+
+        console.log(`[${boardId}] Adding ${newPoints.length} points, queue size after: ${newPoints.length}`);
+
         setBoardData((prev) => {
           const existing = prev[boardId] ?? [];
-
-          const updated = [
-            ...existing,
-            {
-              time: new Date(frame.timestamp).toLocaleTimeString(),
-              voltage: frame.avg_voltage,
-            },
-          ].slice(-100);
-
-          return {
-            ...prev,
-            [boardId]: updated,
-          };
+          const updated = [...existing, ...newPoints].slice(-200);
+          return { ...prev, [boardId]: updated };
         });
 
         setSelectedBoard((prev) => prev || boardId);

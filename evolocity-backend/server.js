@@ -12,7 +12,7 @@ initWebSocket(server);
 
 await initDb();
 
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Backend running at http://localhost:${PORT}`);
   console.log(`WebSocket ready at ws://localhost:${PORT}`);
 });
