@@ -8,14 +8,14 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const WS_URL = import.meta.env.VITE_WS_URL ?? "ws://localhost:3001";
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001/api";
 
 type Point = {
-  time: string;
+  timeMs: number;
   voltage: number;
 };
 
@@ -44,6 +44,7 @@ function App() {
   const [selectedBoard, setSelectedBoard] = useState("");
   const [boardData, setBoardData] = useState<BoardData>({});
   const [latestFrame, setLatestFrame] = useState<ECUFrame | null>(null);
+  const zeroTimeoutsRef = useRef<Record<string, number>>({});
 
   const boardIds = Object.keys(boardData);
 
@@ -70,8 +71,10 @@ function App() {
             grouped[boardId] = [];
           }
 
+          const nextTimeMs = grouped[boardId].length * 100;
+
           grouped[boardId].push({
-            time: `${row.timestamp}ms`,
+            timeMs: nextTimeMs,
             voltage: row.avg_voltage,
           });
         });
@@ -111,19 +114,51 @@ function App() {
 
         const boardId = `ECU-${frame.ecu_serial}`;
 
-        // Push all 10 samples at once
-        const newPoints = frame.voltage_samples.map((v, i) => ({
-          time: `${Number(frame.timestamp) + i * 10}ms`,
-          voltage: v,
-        }));
-
-        console.log(`[${boardId}] Adding ${newPoints.length} points, queue size after: ${newPoints.length}`);
+        if (zeroTimeoutsRef.current[boardId]) {
+          window.clearTimeout(zeroTimeoutsRef.current[boardId]);
+        }
 
         setBoardData((prev) => {
           const existing = prev[boardId] ?? [];
-          const updated = [...existing, ...newPoints].slice(-200);
-          return { ...prev, [boardId]: updated };
+          const lastTimeMs =
+            existing.length > 0 ? existing[existing.length - 1].timeMs : 0;
+
+          const newPoint: Point = {
+            timeMs: lastTimeMs + 100,
+            voltage: frame.avg_voltage,
+          };
+
+          const updated = [...existing, newPoint].slice(-200);
+
+          return {
+            ...prev,
+            [boardId]: updated,
+          };
         });
+
+        zeroTimeoutsRef.current[boardId] = window.setTimeout(() => {
+          setBoardData((prev) => {
+            const existing = prev[boardId] ?? [];
+
+            if (existing.length === 0) return prev;
+
+            const lastPoint = existing[existing.length - 1];
+
+            if (lastPoint.voltage === 0) return prev;
+
+            const zeroPoint: Point = {
+              timeMs: lastPoint.timeMs + 100,
+              voltage: 0,
+            };
+
+            const updated = [...existing, zeroPoint].slice(-200);
+
+            return {
+              ...prev,
+              [boardId]: updated,
+            };
+          });
+        }, 3000);
 
         setSelectedBoard((prev) => prev || boardId);
       } catch (err) {
@@ -142,6 +177,10 @@ function App() {
 
     return () => {
       ws.close();
+
+      Object.values(zeroTimeoutsRef.current).forEach((timeoutId) => {
+        window.clearTimeout(timeoutId);
+      });
     };
   }, []);
 
@@ -183,7 +222,8 @@ function App() {
           {latestPoint ? `${latestPoint.voltage.toFixed(2)} V` : "No data"}
         </div>
         <p className="timestamp">
-          Last update: {latestPoint ? latestPoint.time : "--"}
+          Last update:{" "}
+          {latestPoint ? `${(latestPoint.timeMs / 1000).toFixed(2)} s` : "--"}
         </p>
         {latestFrame && (
           <p className="timestamp">
@@ -198,15 +238,31 @@ function App() {
           <ResponsiveContainer width="100%" height={320}>
             <LineChart data={selectedData}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="time" />
-              <YAxis domain={["auto", "auto"]} />
-              <Tooltip />
+              <XAxis
+                dataKey="timeMs"
+                tickFormatter={(value) => `${(value / 1000).toFixed(1)}s`}
+                minTickGap={30}
+              />
+              <YAxis domain={[0, 60]} width={60} />
+              <Tooltip
+                formatter={(value) => {
+                  const num =
+                    typeof value === "number" ? value : Number(value ?? 0);
+                  return [`${num.toFixed(2)} V`, "Voltage"];
+                }}
+                labelFormatter={(label) => {
+                  const num =
+                    typeof label === "number" ? label : Number(label ?? 0);
+                  return `Time: ${(num / 1000).toFixed(2)} s`;
+                }}
+              />
               <Line
-                type="monotone"
+                type="linear"
                 dataKey="voltage"
                 stroke="#00A5C8"
                 dot={false}
                 strokeWidth={3}
+                isAnimationActive={false}
               />
             </LineChart>
           </ResponsiveContainer>
