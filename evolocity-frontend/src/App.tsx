@@ -25,6 +25,7 @@ interface ECUFrame {
   ecu_serial: number;
   timestamp: string;
   voltage_samples: number[];
+  current_samples: number[];
   avg_voltage: number;
   avg_current: number | null;
   penalty: boolean;
@@ -121,6 +122,7 @@ function App() {
         // 🔍 3. Inspect ECU frame deeply
         console.log("ECU FRAME:", frame);
         console.log("Voltage samples:", frame.voltage_samples);
+        console.log("Current samples:", frame.current_samples);
         console.log("Avg voltage:", frame.avg_voltage);
         console.log("Avg current:", frame.avg_current);
         console.log("Penalty:", frame.penalty);

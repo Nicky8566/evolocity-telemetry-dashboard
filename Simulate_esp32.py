@@ -33,7 +33,7 @@ def random_current_samples(center: float, spread: float) -> list[float]:
 def send_frame():
     # Simulate voltage in millivolts (0-3300 mV = 0-3.3V ADC range)
     voltage_samples = random_adc_samples(center=2250, spread=50)
-    current_samples = random_current_samples(center=0, spread=40)
+    current_samples = random_current_samples(center=2, spread=1)
     time_ms = random_adc_samples(center=2250, spread=50)
 
     payload = {
