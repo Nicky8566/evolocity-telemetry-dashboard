@@ -6,6 +6,7 @@ export const ECUSchema = {
   timestamp:       'TEXT',     // ISO timestamp from simulator / time from boot on real ESP32
   voltage_samples: 'TEXT',     // JSON array of 10 raw ADC readings in millivolts (0-3300mV)
   avg_voltage:     'REAL',     // scaled real voltage calculated by server (V_real = 22.3 * V_sens)
+  current_samples: 'TEXT',     // JSON array of 10 raw ADC readings in milliAmps (0-3300mV)
   avg_current:     'REAL',     // scaled real current — not yet sent, placeholder
   penalty:         'INTEGER',  // 0 = fine, 1 = exceeded 2kW power limit
   recorded_at:     'TEXT',     // ISO timestamp of when server received the frame

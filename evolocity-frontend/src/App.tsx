@@ -99,10 +99,17 @@ function App() {
     };
 
     ws.onmessage = (event) => {
+      // 🔍 1. Raw payload from backend
+      console.log("RAW WS MESSAGE:", event.data);
+
       try {
         const msg = JSON.parse(event.data);
 
+        // 🔍 2. Parsed message
+        console.log("PARSED MESSAGE:", msg);
+
         if (msg.type === "hello") {
+          console.log("Received HELLO message");
           setConnected(true);
           return;
         }
@@ -110,6 +117,14 @@ function App() {
         if (msg.type !== "ecu_frame") return;
 
         const frame: ECUFrame = msg.data;
+
+        // 🔍 3. Inspect ECU frame deeply
+        console.log("ECU FRAME:", frame);
+        console.log("Voltage samples:", frame.voltage_samples);
+        console.log("Avg voltage:", frame.avg_voltage);
+        console.log("Avg current:", frame.avg_current);
+        console.log("Penalty:", frame.penalty);
+
         setLatestFrame(frame);
 
         const boardId = `ECU-${frame.ecu_serial}`;
@@ -127,6 +142,13 @@ function App() {
             timeMs: lastTimeMs + 100,
             voltage: frame.avg_voltage,
           };
+
+          // 🔍 4. See what gets added to chart
+          console.log("Adding point to chart:", {
+            boardId,
+            timeMs: newPoint.timeMs,
+            voltage: newPoint.voltage,
+          });
 
           const updated = [...existing, newPoint].slice(-200);
 
@@ -150,6 +172,8 @@ function App() {
               timeMs: lastPoint.timeMs + 100,
               voltage: 0,
             };
+
+            console.log("Injecting zero point due to timeout:", zeroPoint);
 
             const updated = [...existing, zeroPoint].slice(-200);
 

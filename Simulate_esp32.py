@@ -23,16 +23,24 @@ def random_adc_samples(center: int, spread: int) -> list[int]:
         for _ in range(NUM_SAMPLES)
     ]
 
+def random_current_samples(center: float, spread: float) -> list[float]:
+    return [
+        round(center + random.uniform(-spread, spread), 3)
+        for _ in range(NUM_SAMPLES)
+    ]
+
 
 def send_frame():
     # Simulate voltage in millivolts (0-3300 mV = 0-3.3V ADC range)
     voltage_samples = random_adc_samples(center=2250, spread=50)
+    current_samples = random_current_samples(center=0, spread=40)
     time_ms = random_adc_samples(center=2250, spread=50)
 
     payload = {
         "ecu_serial": ECU_SERIAL,
         "timestamp": 220000,
         "voltage_samples": voltage_samples,
+        "current_samples": current_samples,
     }
 
     try:
