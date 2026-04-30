@@ -1,4 +1,5 @@
 import "./App.css";
+import CreateTeam from "./createTeam";
 import {
   LineChart,
   Line,
@@ -41,6 +42,7 @@ interface HistoryRow {
 }
 
 function App() {
+  const [showCreateTeam, setShowCreateTeam] = useState(false);
   const [connected, setConnected] = useState(false);
   const [selectedBoard, setSelectedBoard] = useState("");
   const [boardData, setBoardData] = useState<BoardData>({});
@@ -210,10 +212,33 @@ function App() {
     };
   }, []);
 
+  if (showCreateTeam) {
+    return (
+      <div className="app">
+        <header className="header">
+          <h1>EVolocity Telemetry Viewer</h1>
+          <button
+            className="nav-button"
+            onClick={() => setShowCreateTeam(false)}
+          >
+            ← Back to Dashboard
+          </button>
+        </header>
+        <CreateTeam />
+      </div>
+    );
+  }
+
   return (
     <div className="app">
       <header className="header">
         <h1>EVolocity Telemetry Viewer</h1>
+        <button
+          className="nav-button"
+          onClick={() => setShowCreateTeam(true)}
+        >
+          Create Team +
+        </button>
         <p className="status">
           Status: {connected ? "Connected" : "Disconnected"}
         </p>

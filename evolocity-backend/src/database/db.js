@@ -38,6 +38,18 @@ export async function initDb() {
     )
   `);
 
+  // Teams table
+  db.run(`
+    CREATE TABLE IF NOT EXISTS teams (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      team_name       STRING NOT NULL,
+      team_id         STRING NOT NULL,
+      vehicle_class   STRING NOT NULL,
+      vehicle_type    STRING NOT NULL,
+      ecu_serial      INTEGER
+    )
+  `)
+
   persist();
   console.log('SQLite ready.');
 }
@@ -101,3 +113,54 @@ export function getAllECUFrames() {
     return obj;
   });
 }
+
+// ── Team Data ─────────────────────────────────────────────────────────────────
+
+export function insertTeam(team) {
+  db.run(
+    `INSERT INTO teams
+      (team_name, team_id, vehicle_class, vehicle_type, ecu_serial)
+     VALUES (?, ?, ?, ?, ?)`,
+    [
+      team.team_name,
+      team.team_id,
+      team.vehicle_class,
+      team.vehicle_type,
+      team.ecu_serial ?? null,
+    ]
+  );
+  persist();
+}
+
+export function getAllTeams() {
+  const result = db.exec('SELECT * FROM teams ORDER BY id ASC');
+  if (result.length === 0) return [];
+  const { columns, values } = result[0];
+  return values.map(row => {
+    const obj = Object.fromEntries(columns.map((col, i) => [col, row[i]]));
+    return obj;
+  });
+}
+
+export function updateTeam(team) {
+  db.run(`
+    UPDATE teams
+    SET team_name = ${team.name},
+    team_id = ${team.team_id},
+    vehicle_class = ${team.vehicle_class},
+    vehicle_type = ${team.vehicle_type},
+    ecu_serial = ${team.ecu_serial} 
+    WHERE id = ${team.id}  
+  `);
+  persist();
+}
+
+// export function getTeamByEcuId(ecu_id) {
+//   const result = db.exec(`SELECT * FROM teams WHERE ecu_id = ${ecu_id}`)
+//   if (result.length === 0) return [];
+//   const { columns, values } = result[0];
+//   return values.map(row => {
+//     const obj = Object.fromEntries(columns.map((col, i) => [col, row[i]]));
+//     return obj;
+//   });
+// }

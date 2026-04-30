@@ -31,3 +31,12 @@ export function getECUData(req, res) {
   const rows = getECUHistory();
   res.json({ count: rows.length, data: rows });
 }
+
+export function getECUSerials(req, res) {
+  const rows = getECUHistory();
+  console.log('getECUSerials: Found', rows.length, 'ECU frames');
+  // Extract unique ECU serials
+  const serials = [...new Set(rows.map(row => row.ecu_serial))].sort((a, b) => a - b);
+  console.log('getECUSerials: Unique serials:', serials);
+  res.json({ serials });
+}
