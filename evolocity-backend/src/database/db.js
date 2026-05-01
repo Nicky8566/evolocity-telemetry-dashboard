@@ -171,3 +171,14 @@ export function getTeamByName(team_name) {
     return obj;
   });
 }
+
+export function getTeamByTeamId(team_id) {
+  console.log("hello");
+  const result = db.exec(`SELECT * FROM teams WHERE team_id = ?`,[team_id]);
+  if (result.length === 0) return [];
+  const { columns, values } = result[0];
+  return values.map(row => {
+    const obj = Object.fromEntries(columns.map((col, i) => [col, row[i]]));
+    return obj;
+  });
+}

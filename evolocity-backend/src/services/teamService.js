@@ -1,4 +1,4 @@
-import { insertTeam, getAllTeams, updateTeamEcu, getTeamByEcu, getTeamByName } from '../database/db.js';
+import { insertTeam, getAllTeams, updateTeamEcu, getTeamByEcu, getTeamByName, getTeamByTeamId } from '../database/db.js';
 
 // function to save team information
 export function saveTeam(payload) {
@@ -40,6 +40,9 @@ export function getTeamByEcuSerial(ecu_serial) {
 }
 
 export function getTeamByTeamName(team_name) {
-	console.log(team_name + " name")
 	return getTeamByName(team_name);
+}
+
+export function getTeamByTeamID(team_id) {
+	return getTeamByTeamId(team_id);
 }

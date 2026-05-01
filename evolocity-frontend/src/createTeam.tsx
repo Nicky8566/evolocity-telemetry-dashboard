@@ -101,6 +101,8 @@ function CreateTeam() {
 	};
 
 	async function createTeam() {
+		setNameErrorMsg("");
+		setIdErrorMsg("");
 		let err = false;
 		if (teamName === "") {
 			setNameErrorMsg("Team name cannot be empty");
@@ -122,15 +124,21 @@ function CreateTeam() {
 			setIdErrorMsg("Team ID cannot be empty");
 			console.log('Team ID is empty');
 			err = true;
+		} else {
+			const res = await fetch(`${API_BASE_URL}/teams/team_ids/${teamId}`);
+			const json = await res.json();
+			const idRows: Team[] = json.data ?? [];
+
+			if (idRows.length > 0) {
+				setIdErrorMsg("Team ID already in use");
+				console.log('Team ID must be unique');
+				err = true;
+			}
 		}
 
 		if (err === true) {
 			return;
-		} else {
-			setNameErrorMsg("");
-			setIdErrorMsg("");
 		}
-
 		const teamData = {
 			name: teamName,
 			team_id: teamId,
