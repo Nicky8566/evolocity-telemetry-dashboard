@@ -1,4 +1,4 @@
-import { getTeams, saveTeam } from '../services/teamService.js';
+import { getTeams, saveTeam, getTeamByEcuSerial, updateTeamEcuSerial, getTeamByTeamName } from '../services/teamService.js';
 import { broadcast } from '../../websocket.js';
 
 export function getAllTeams(req, res) {
@@ -18,10 +18,24 @@ export function saveTeamInfo(req, res) {
 	res.json({ message: 'Saved new team' });
 }
 
-// export function updateTeamInfo(req, res) {
-// 	console.log('Headers:', req.headers);
-//   console.log('Body:', req.body); 
-//   const payload = req.body;
-// 	updateTeam(payload);
-// 	res.json({ message: 'Updated team information' });
-// }
+export function updateTeamEcu(req, res) {
+	console.log('Headers:', req.headers);
+  console.log('Body:', req.body); 
+  const payload = req.body;
+	updateTeamEcuSerial(payload);
+	res.json({ message: 'Updated team ecu' });
+}
+
+export function getTeamByEcu(req, res) {
+	console.log('Params:', req.params);
+  const payload = req.params.ecu_serial;
+	const rows = getTeamByEcuSerial(payload);
+	res.json({ count: rows.length, data: rows });
+}
+
+export function getTeamByName(req, res) {
+	console.log('Params:', req.params);
+  const payload = req.params.team_name;
+	const rows = getTeamByTeamName(payload);
+	res.json({ count: rows.length, data: rows });
+}

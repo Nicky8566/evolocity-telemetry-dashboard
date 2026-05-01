@@ -79,14 +79,15 @@ function TeamSidebar() {
   }, []);
 
   return (
-    <div className="sidebar" style={{ background: '#126476', padding:'10px', width:'250px' }}>
+    <div className="sidebar" style={{ background: '#126476', padding:'10px', width:'250px', 
+  																		height: '75vh'}}>
       <div className="topSection" style={{ display:'flex', flexDirection:'column'}}>
         <textarea id="searchbar">Search</textarea>
         <button type="button">Create team</button>
       </div>
       <div className="teams">
         <h3>Teams</h3>
-        <div className="team-buttons" style={{ display: "block" }}>
+        <div className="team-buttons" style={{ display: "block", height: '50vh', overflowY: 'auto'  }}>
           {loading ? (
             <p>Loading...</p>
           ) : teams.length === 0 ? (
@@ -103,7 +104,7 @@ function TeamSidebar() {
 								style={{width:'80%'}}
                 onClick={() => setSelectedTeam(team.id.toString())}
               >
-                {team.team_name}
+                {team.team_name} | {team.team_id} | {team.vehicle_class} | {team.vehicle_type} | {team.ecu_serial ?? "None selected"}
               </button>
             ))
           )}

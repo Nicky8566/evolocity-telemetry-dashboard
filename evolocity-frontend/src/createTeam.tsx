@@ -4,6 +4,15 @@ import { useEffect, useState } from "react";
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001/api";
 
+interface Team {
+	id: number;
+	team_name: string;
+	team_id: string;
+	vehicle_class: string;
+	vehicle_type: string;
+	ecu_serial: number | null;
+}
+
 function CreateTeam() {
 	const [teamName, setTeamName] = useState<string>("");
 	const [teamId, setTeamId] = useState<string>("");
@@ -11,30 +20,176 @@ function CreateTeam() {
 	const [vehicleType, setVehicleType] = useState<string>("Open");
 	const [ecuSerial, setEcuSerial] = useState<string>("");
 	const [ecuSerials, setEcuSerials] = useState<number[]>([]);
-	const [errorMsg, setErrorMsg] = useState<string>("");
+	const [nameErrorMsg, setNameErrorMsg] = useState<string>("");
+	const [idErrorMsg, setIdErrorMsg] = useState<string>("");
+	const [popupOpen, setPopupOpen] = useState<boolean>(false);
+	const [ecuSwap, setEcuSwap] = useState<boolean>(false);
+	const [pendingTeamData, setPendingTeamData] = useState<{
+		name: string;
+		team_id: string;
+		vehicle_class: string;
+		vehicle_type: string;
+		ecu_serial: string;
+	} | null>(null);
+	const [conflictingTeams, setConflictingTeams] = useState<Team[]>([]);
 
-	const createTeam = async () => {
-		const requestOptions = {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
-				name: teamName,
-				team_id: teamId,
-				vehicle_class: vehicleClass,
-				vehicle_type: vehicleType,
-				ecu_serial: ecuSerial
-			})
+	async function waitForPopupChoice(): Promise<"yes" | "cancel"> {
+		return new Promise((resolve) => {
+			const yesBtn = document.getElementById("yes");
+			const cancelBtn = document.getElementById("cancel");
+
+			// If buttons are not yet in the DOM, wait a tick and try again
+			if (!yesBtn || !cancelBtn) {
+				// small delay to allow React to render the popup
+				setTimeout(() => {
+					const yes = document.getElementById("yes");
+					const cancel = document.getElementById("cancel");
+					yes?.addEventListener("click", () => resolve("yes"), { once: true });
+					cancel?.addEventListener("click", () => resolve("cancel"), { once: true });
+				}, 0);
+				return;
+			}
+
+			yesBtn.addEventListener("click", () => resolve("yes"), { once: true });
+			cancelBtn.addEventListener("click", () => resolve("cancel"), { once: true });
+		});
+	}
+
+	// Watch for popup close and continue if there's pending data
+	useEffect(() => {
+		if (!popupOpen && pendingTeamData) {
+			// If ecuSwap is true, clear ECU from other teams first
+			if (ecuSwap && conflictingTeams.length > 0) {
+				conflictingTeams.forEach((team) => {
+					fetch(`${API_BASE_URL}/teams/update/ecu`, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ id: team.id, ecu_serial: "" })
+					});
+				});
+			}
+			if (!ecuSwap) {
+				return;
+			}
+			
+			// Then create the team
+			executeCreateTeam(pendingTeamData);
+			console.log(pendingTeamData.ecu_serial);
+			setPendingTeamData(null);
+			setConflictingTeams([]);
+		}
+	}, [popupOpen, pendingTeamData, ecuSwap, conflictingTeams]);
+
+	const executeCreateTeam = async (teamData: {
+		name: string;
+		team_id: string;
+		vehicle_class: string;
+		vehicle_type: string;
+		ecu_serial: string;
+	}) => {
+		try {
+			const response = await fetch(`${API_BASE_URL}/teams/create`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(teamData)
+			});
+			const data = await response.json();
+			console.log('Success:', data);
+		} catch (error) {
+			console.error('Error:', error);
+		}
+	};
+
+	async function createTeam() {
+		let err = false;
+		if (teamName === "") {
+			setNameErrorMsg("Team name cannot be empty");
+			console.log('Team name is empty');
+			err = true;
+		} else {
+			const res = await fetch(`${API_BASE_URL}/teams/names/${teamName}`);
+			const json = await res.json();
+			const rows: Team[] = json.data ?? [];
+
+			if (rows.length > 0) {
+				setNameErrorMsg("Team name already in use");
+				console.log('Team name must be unique');
+				err = true;
+			}
+		}
+
+		if (teamId === "") {
+			setIdErrorMsg("Team ID cannot be empty");
+			console.log('Team ID is empty');
+			err = true;
+		}
+
+		if (err === true) {
+			return;
+		} else {
+			setNameErrorMsg("");
+			setIdErrorMsg("");
+		}
+
+		const teamData = {
+			name: teamName,
+			team_id: teamId,
+			vehicle_class: vehicleClass,
+			vehicle_type: vehicleType,
+			ecu_serial: ecuSerial
 		};
 
 		try {
-			if (teamName == "" || teamId == "") {
-				setErrorMsg("Team name, id, vehicle class and vehicle type cannot be empty")
-				console.log('Some fields are empty')
+			setEcuSwap(false);
+			// If no ECU selected, just create the team
+			if (teamData.ecu_serial === "" || teamData.ecu_serial == null) {
+				await executeCreateTeam(teamData);
 				return;
 			}
-			const response = await fetch(`${API_BASE_URL}/teams/create`, requestOptions);
-			const data = await response.json();
-			console.log('Success:', data);
+
+			// Check for conflicting teams using this ECU
+			const res = await fetch(`${API_BASE_URL}/teams/ecus/${teamData.ecu_serial}`);
+			const json = await res.json();
+			const rows: Team[] = json.data ?? [];
+
+			if (rows.length === 0) {
+				// No conflicts, create immediately
+				await executeCreateTeam(teamData);
+				return;
+			}
+
+			// Conflicts found: show popup and wait for user's choice
+			setConflictingTeams(rows);
+			setPopupOpen(true);
+
+			const choice = await waitForPopupChoice();
+
+			// Close popup for rendering
+			setPopupOpen(false);
+
+			if (choice === "cancel") {
+				// User cancelled: do nothing
+				setConflictingTeams([]);
+				return;
+			}
+
+			// choice === "yes": remove ECU from conflicting teams first
+			// Convert ecu_serial to the type your API expects; here we send empty string to clear
+			await Promise.all(
+				rows.map((team) =>
+					fetch(`${API_BASE_URL}/teams/update/ecu`, {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({ id: team.id, ecu_serial: "" })
+					})
+				)
+			);
+
+			// Now create the new team
+			await executeCreateTeam(teamData);
+
+			// cleanup
+			setConflictingTeams([]);
 		} catch (error) {
 			console.error('Error:', error);
 		}
@@ -52,17 +207,28 @@ function CreateTeam() {
 
 	return (
 		<div className="createTeams" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
+				<div className="modal-overlay" id="popup" style={{ visibility: popupOpen ? 'visible' : 'hidden' }}>
+          <div className="modal-content">
+            <h4>One or more team is using the chosen ESP32</h4>
+						<p>Would you still like to select it?</p>
+						<p>Clicking "Yes" will remove the ESP32 from the other teams using it</p>
+            <button id="yes" onClick={() => {setEcuSwap(true);setPopupOpen(false)}}>Yes</button>
+						<button id="cancel" onClick={() => {setEcuSwap(false);setPopupOpen(false)}}>Cancel</button>
+          </div>
+        </div>
 			<div className="teamForm" style={{ display: 'flex', flexDirection: 'column'}}>
 				<div className="row1" style={{ display: 'flex', flexDirection: 'row'  }}>
 					<div className="formInput" style={{ display: 'flex', flexDirection: 'column'}}>
 						<h3>Team name</h3>
 						<textarea value={teamName}
         		onChange={(e) => setTeamName(e.target.value)}>e.g. Team 4</textarea>
+						<p>{nameErrorMsg}</p>
 					</div>
 					<div className="formInput" style={{ display: 'flex', flexDirection: 'column'}}>
 						<h3>Team ID</h3>
 						<textarea value={teamId}
         		onChange={(e) => setTeamId(e.target.value)}>e.g T04</textarea>
+						<p>{idErrorMsg}</p>
 					</div>
 				</div>
 				<div className="row2" style={{ display: 'flex', flexDirection: 'row' }}>
@@ -85,7 +251,7 @@ function CreateTeam() {
 				</div>
 				<div className="row3">
 					<div className="formInput" style={{ display: 'flex', flexDirection: 'column'}}>
-						<h3>ECU</h3>
+						<h3>ESP32 serial</h3>
 						<select
 							id="ecu_serial"
 							value={ecuSerial}
@@ -104,7 +270,6 @@ function CreateTeam() {
 					<button type="button" onClick={createTeam}>Create</button>
 					<button type="button">Cancel</button>
 				</div>
-				<p>{errorMsg}</p>
 			</div>
 			<TeamSidebar />
 		</div>

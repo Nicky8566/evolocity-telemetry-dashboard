@@ -142,25 +142,32 @@ export function getAllTeams() {
   });
 }
 
-export function updateTeam(team) {
+export function updateTeamEcu(team) {
   db.run(`
     UPDATE teams
-    SET team_name = ${team.name},
-    team_id = ${team.team_id},
-    vehicle_class = ${team.vehicle_class},
-    vehicle_type = ${team.vehicle_type},
-    ecu_serial = ${team.ecu_serial} 
+    SET ecu_serial = ${team.ecu_serial} 
     WHERE id = ${team.id}  
   `);
   persist();
 }
 
-// export function getTeamByEcuId(ecu_id) {
-//   const result = db.exec(`SELECT * FROM teams WHERE ecu_id = ${ecu_id}`)
-//   if (result.length === 0) return [];
-//   const { columns, values } = result[0];
-//   return values.map(row => {
-//     const obj = Object.fromEntries(columns.map((col, i) => [col, row[i]]));
-//     return obj;
-//   });
-// }
+export function getTeamByEcu(ecu_serial) {
+  const result = db.exec(`SELECT * FROM teams WHERE ecu_serial = ${ecu_serial}`);
+  if (result.length === 0) return [];
+  const { columns, values } = result[0];
+  return values.map(row => {
+    const obj = Object.fromEntries(columns.map((col, i) => [col, row[i]]));
+    return obj;
+  });
+}
+
+export function getTeamByName(team_name) {
+  console.log("hello");
+  const result = db.exec(`SELECT * FROM teams WHERE team_name = ?`,[team_name]);
+  if (result.length === 0) return [];
+  const { columns, values } = result[0];
+  return values.map(row => {
+    const obj = Object.fromEntries(columns.map((col, i) => [col, row[i]]));
+    return obj;
+  });
+}
