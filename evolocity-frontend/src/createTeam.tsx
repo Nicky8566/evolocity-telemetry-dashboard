@@ -205,11 +205,21 @@ function CreateTeam() {
 			.catch((err) => console.error("Failed to fetch ECU serials:", err));
 	}, []);
 
+	function clearForm() {
+		document.getElementById("name").value = "";
+		document.getElementById("id").value = "";
+	}
+
 	return (
 		<div className="createTeams" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between' }}>
 				<div className="modal-overlay" id="popup" style={{ visibility: popupOpen ? 'visible' : 'hidden' }}>
           <div className="modal-content">
-            <h4>One or more team is using the chosen ESP32</h4>
+            <h4>This ESP32 is being used by:</h4>
+							{conflictingTeams.map((team) => (
+								<p>
+									{team.team_name}
+								</p>
+							))}
 						<p>Would you still like to select it?</p>
 						<p>Clicking "Yes" will remove the ESP32 from the other teams using it</p>
             <button id="yes" onClick={() => {setEcuSwap(true);setPopupOpen(false)}}>Yes</button>
@@ -220,13 +230,13 @@ function CreateTeam() {
 				<div className="row1" style={{ display: 'flex', flexDirection: 'row'  }}>
 					<div className="formInput" style={{ display: 'flex', flexDirection: 'column'}}>
 						<h3>Team name</h3>
-						<textarea value={teamName}
+						<textarea id="name" value={teamName}
         		onChange={(e) => setTeamName(e.target.value)}>e.g. Team 4</textarea>
 						<p>{nameErrorMsg}</p>
 					</div>
 					<div className="formInput" style={{ display: 'flex', flexDirection: 'column'}}>
 						<h3>Team ID</h3>
-						<textarea value={teamId}
+						<textarea id="id" value={teamId}
         		onChange={(e) => setTeamId(e.target.value)}>e.g T04</textarea>
 						<p>{idErrorMsg}</p>
 					</div>
@@ -253,7 +263,7 @@ function CreateTeam() {
 					<div className="formInput" style={{ display: 'flex', flexDirection: 'column'}}>
 						<h3>ESP32 serial</h3>
 						<select
-							id="ecu_serial"
+							id="serials"
 							value={ecuSerial}
 							onChange={(e) => setEcuSerial(e.target.value)}
 						>
@@ -268,7 +278,7 @@ function CreateTeam() {
 				</div>
 				<div className="row4" style={{ display: 'flex', flexDirection: 'row' }}>
 					<button type="button" onClick={createTeam}>Create</button>
-					<button type="button">Cancel</button>
+					<button type="button" onClick={clearForm}>Cancel</button>
 				</div>
 			</div>
 			<TeamSidebar />
