@@ -35,6 +35,7 @@ router.get('/alerts', getAlertsHandler);
 
 // Competitions
 router.get('/competitions', getAllCompetitions);
+router.post('/competitions', createNewCompetition);
 router.get('/competitions/:id', getCompetitionDetails);
 router.post('/competitions/create', createNewCompetition);
 router.post('/competitions/assign-team', assignTeam);

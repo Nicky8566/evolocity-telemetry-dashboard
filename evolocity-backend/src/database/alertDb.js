@@ -2,14 +2,19 @@ import { db, persist } from './db.js';
 
 export function insertAlert(alert) {
   db.run(
-    `INSERT INTO alerts (ecu_serial, power_value, threshold, started_at)
-     VALUES (?, ?, ?, ?)`,
-    [alert.ecu_serial, alert.power_value, alert.threshold, alert.started_at]
+    `INSERT INTO alerts (ecu_serial, power_value, threshold, started_at, type)
+     VALUES (?, ?, ?, ?, ?)`,
+    [alert.ecu_serial, alert.power_value, alert.threshold, alert.started_at, alert.type ?? 'warning']
   );
   const result = db.exec('SELECT last_insert_rowid() AS id');
   const id = result[0].values[0][0];
   persist();
   return id;
+}
+
+export function updateAlertType(id, type) {
+  db.run('UPDATE alerts SET type = ? WHERE id = ?', [type, id]);
+  persist();
 }
 
 export function updateAlertEnd(id, power_value, ended_at, duration_ms) {

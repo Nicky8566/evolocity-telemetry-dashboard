@@ -4,7 +4,6 @@ import logo from "../../assets/logo.png"
 
 const links = [
   { to: "/",             label: "Dashboard"    },
-  { to: "/teams",        label: "Teams"        },
   { to: "/competitions", label: "Competitions" },
   { to: "/leaderboard",  label: "Leaderboard"  },
   { to: "/alerts",       label: "Alerts"       },

@@ -3,8 +3,8 @@ import { db, persist } from './db.js';
 export function insertECUFrame(frame) {
   db.run(
     `INSERT INTO ecu_data
-      (ecu_serial, timestamp, voltage_samples, current_samples, avg_voltage, avg_current, penalty, recorded_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      (ecu_serial, timestamp, voltage_samples, current_samples, avg_voltage, avg_current, avg_power, avg_energy, recorded_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       frame.ecu_serial,
       frame.timestamp,
@@ -12,27 +12,25 @@ export function insertECUFrame(frame) {
       frame.current_samples ? JSON.stringify(frame.current_samples) : null,
       frame.avg_voltage,
       frame.avg_current ?? null,
-      frame.penalty ? 1 : 0,
-      new Date().toISOString()
+      frame.avg_power ?? null,
+      frame.avg_energy ?? null,
+      new Date().toISOString(),
     ]
   );
   persist();
 }
 
-// Capped at 1000 rows by default — was previously fetching entire table
 export function getAllECUFrames(limit = 1000) {
   const result = db.exec(
-    `SELECT * FROM ecu_data ORDER BY id DESC LIMIT ?`,
+    `SELECT ecu_serial, timestamp, avg_voltage, avg_current, avg_power, avg_energy
+     FROM ecu_data ORDER BY id DESC LIMIT ?`,
     [limit]
   );
   if (result.length === 0) return [];
   const { columns, values } = result[0];
-  return values.map(row => {
-    const obj = Object.fromEntries(columns.map((col, i) => [col, row[i]]));
-    obj.voltage_samples = JSON.parse(obj.voltage_samples);
-    obj.current_samples = obj.current_samples ? JSON.parse(obj.current_samples) : null;
-    return obj;
-  }).reverse(); // reverse so oldest first after DESC fetch
+  return values
+    .map(row => Object.fromEntries(columns.map((col, i) => [col, row[i]])))
+    .reverse(); // oldest first
 }
 
 export function getUniqueECUSerials() {

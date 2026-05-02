@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 import { teamsApi } from "../api/teams"
 import AlertCard from "../components/ui/AlertCard"
 import ChartCard from "../components/ui/ChartCard"
+import CreateTeamModal from "../components/ui/CreateTeamModal"
 import StatCard  from "../components/ui/StatCard"
 import { useTelemetry } from "../context/TelemetryContext"
 import type { Team } from "../types"
@@ -10,18 +11,18 @@ export default function Dashboard() {
   const { boardData, alerts } = useTelemetry()
 
   const [teams, setTeams]               = useState<Team[]>([])
-  const [selectedTeam, setSelectedTeam] = useState<Team | null>({
-    id: 1, team_name: "Team Thunder", team_id: "T01",
-    vehicle_class: "Standard", vehicle_type: "Kart", ecu_serial: 12345,
-  })
+  const [selectedTeam, setSelectedTeam] = useState<Team | null>(null)
+  const [showCreateTeam, setShowCreateTeam] = useState(false)
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo]     = useState("")
 
-  useEffect(() => {
+  function loadTeams() {
     teamsApi.list()
       .then(({ data }) => setTeams(data))
       .catch((err) => console.error("Failed to load teams:", err))
-  }, [])
+  }
+
+  useEffect(() => { loadTeams() }, [])
 
   const boardId    = selectedTeam?.ecu_serial ? `ECU-${selectedTeam.ecu_serial}` : null
   const frames     = boardId ? (boardData[boardId] ?? []) : []
@@ -152,7 +153,15 @@ export default function Dashboard() {
 
       {/* ── Team panel ──────────────────────────────────────────────────── */}
       <aside className="w-48 shrink-0 flex flex-col gap-4 order-last border-l border-ev-cyan/30 pl-6">
-        <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Teams</p>
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Teams</p>
+          <button
+            onClick={() => setShowCreateTeam(true)}
+            className="text-xs text-ev-cyan hover:text-ev-blue font-medium transition-colors"
+          >
+            + New
+          </button>
+        </div>
         <div className="flex flex-col gap-1 overflow-y-auto flex-1">
           {teams.length === 0 ? (
             <p className="text-slate-600 text-xs">No teams registered</p>
@@ -170,13 +179,21 @@ export default function Dashboard() {
               >
                 <p className="text-sm font-medium leading-tight text-slate-900">{team.team_name}</p>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  {team.ecu_serial ? `ECU ${team.ecu_serial}` : "No ECU"}
+                  {team.ecu_serial ? `ESP-${team.ecu_serial}` : "No ESP"}
                 </p>
               </button>
             ))
           )}
         </div>
       </aside>
+
+      {showCreateTeam && (
+        <CreateTeamModal
+          teams={teams}
+          onClose={() => setShowCreateTeam(false)}
+          onDone={() => { setShowCreateTeam(false); loadTeams() }}
+        />
+      )}
 
     </div>
   )

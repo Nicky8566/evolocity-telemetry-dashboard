@@ -27,8 +27,17 @@ export function saveTeamInfo(req, res) {
   }
 
   const id = saveTeam(req.body);
-  broadcast({ type: 'team', data: { ...req.body, id } });
-  res.json({ message: 'Saved new team', id });
+  const team = {
+    id,
+    team_name:     name,
+    team_id,
+    vehicle_class: vehicle_class.toLowerCase(),
+    vehicle_type:  vehicle_type.toLowerCase(),
+    ecu_serial:    req.body.ecu_serial ? parseInt(req.body.ecu_serial) : null,
+    power_limit:   req.body.power_limit ?? null,
+  };
+  broadcast({ type: 'team', data: team });
+  res.json({ data: team });
 }
 
 export function updateTeamEcu(req, res) {

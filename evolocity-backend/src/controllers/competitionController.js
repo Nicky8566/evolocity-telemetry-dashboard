@@ -22,7 +22,7 @@ export function createNewCompetition(req, res) {
     return res.status(409).json({ error: result.error });
   }
 
-  res.json({ message: 'Competition created', competition: result });
+  res.json({ data: result });
 }
 
 export function getCompetitionDetails(req, res) {
