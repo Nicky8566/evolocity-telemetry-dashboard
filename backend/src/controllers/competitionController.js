@@ -3,7 +3,6 @@ import {
   getCompetitions,
   getCompetition,
   assignTeamToCompetition,
-  unassignTeamFromCompetition
 } from '../services/competitionService.js';
 
 export function getAllCompetitions(req, res) {
@@ -12,12 +11,17 @@ export function getAllCompetitions(req, res) {
 }
 
 export function createNewCompetition(req, res) {
-  const { name } = req.body;
+  const { name, event_type } = req.body;
   if (!name || name.trim() === '') {
     return res.status(400).json({ error: 'Competition name is required' });
   }
 
-  const result = createCompetition(name.trim());
+  const validTypes = ['drag', 'gymkhana', 'endurance'];
+  if (!event_type || !validTypes.includes(event_type)) {
+    return res.status(400).json({ error: 'event_type must be drag, gymkhana, or endurance' });
+  }
+
+  const result = createCompetition(name.trim(), event_type);
   if (result.error) {
     return res.status(409).json({ error: result.error });
   }
@@ -45,11 +49,3 @@ export function assignTeam(req, res) {
   res.json({ message: 'Team assigned to competition' });
 }
 
-export function unassignTeam(req, res) {
-  const { competition_id, team_id } = req.body;
-  if (!competition_id || !team_id) {
-    return res.status(400).json({ error: 'competition_id and team_id are required' });
-  }
-  unassignTeamFromCompetition(competition_id, team_id);
-  res.json({ message: 'Team removed from competition' });
-}

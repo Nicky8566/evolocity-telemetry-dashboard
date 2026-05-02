@@ -1,194 +1,211 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { competitionsApi } from "../api/competitions"
-import { teamsApi } from "../api/teams"
-import type { Competition, Team } from "../types"
+import CreateCompetitionModal from "../components/ui/CreateCompetitionModal"
+import { useTelemetry } from "../context/TelemetryContext"
+import type { Competition, CompetitionDetail } from "../types"
+
+const EVENT_COLOURS: Record<string, string> = {
+  drag:      "bg-ev-cyan/10 text-ev-cyan border-ev-cyan/30",
+  gymkhana:  "bg-purple-500/10 text-purple-400 border-purple-500/30",
+  endurance: "bg-ev-orange/10 text-ev-orange border-ev-orange/30",
+}
+
+const EVENT_LABELS: Record<string, string> = {
+  drag:      "Drag Race",
+  gymkhana:  "Gymkhana",
+  endurance: "Endurance",
+}
 
 export default function Competitions() {
   const navigate = useNavigate()
+  const { boardData, alerts } = useTelemetry()
 
-  const [competitions, setCompetitions] = useState<Competition[]>([])
-  const [teams, setTeams]               = useState<Team[]>([])
-  const [loading, setLoading]           = useState(true)
-  const [newName, setNewName]           = useState("")
-  const [creating, setCreating]         = useState(false)
+  const [competitions, setCompetitions]   = useState<Competition[]>([])
+  const [selected, setSelected]           = useState<CompetitionDetail | null>(null)
+  const [showCreate, setShowCreate]       = useState(false)
+  const [loadingDetail, setLoadingDetail] = useState(false)
 
-  useEffect(() => {
-    Promise.all([competitionsApi.list(), teamsApi.list()])
-      .then(([compRes, teamRes]) => {
-        setCompetitions(compRes.data)
-        setTeams(teamRes.data)
-      })
-      .catch((err) => console.error(err))
-      .finally(() => setLoading(false))
-  }, [])
-
-  async function handleCreate() {
-    if (!newName.trim() || creating) return
-    setCreating(true)
-    try {
-      await competitionsApi.create(newName.trim())
-      setNewName("")
-      const res = await competitionsApi.list()
-      setCompetitions(res.data)
-    } catch (err) {
-      console.error(err)
-    } finally {
-      setCreating(false)
-    }
+  function loadCompetitions() {
+    competitionsApi.list().then(({ data }) => setCompetitions(data)).catch(console.error)
   }
 
-  // Most recently created competition treated as active
-  const activeComp = competitions.length > 0 ? competitions[competitions.length - 1] : null
-  const pastComps  = competitions.length > 1 ? [...competitions].slice(0, -1).reverse() : []
+  function selectCompetition(c: Competition) {
+    setLoadingDetail(true)
+    competitionsApi.getById(c.id)
+      .then(({ data }) => setSelected(data))
+      .catch(console.error)
+      .finally(() => setLoadingDetail(false))
+  }
+
+  useEffect(() => { loadCompetitions() }, [])
+
+  const teamRows = useMemo(() => {
+    if (!selected) return []
+    return selected.teams
+      .map((team) => {
+        const boardId     = `ECU-${team.ecu_serial}`
+        const frames      = boardData[boardId] ?? []
+        const latest      = frames.at(-1) ?? null
+        const totalEnergy = frames.reduce((s, f) => s + (f.avg_energy ?? 0), 0)
+        const teamAlerts  = alerts.filter((a) => a.ecu_serial === team.ecu_serial)
+        const penalty     = teamAlerts.some((a) => a.type === "penalty" && a.ended_at === null)
+        const warning     = !penalty && teamAlerts.some((a) => a.type === "warning" && a.ended_at === null)
+        return { team, latest, totalEnergy, penalty, warning }
+      })
+      .sort((a, b) => a.totalEnergy - b.totalEnergy)
+  }, [selected, boardData, alerts])
 
   return (
-    <div className="flex min-h-0 h-full">
+    <div className="flex gap-8 min-h-0 h-full">
 
-      {/* ── Left: leaderboard ───────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col gap-6 min-w-0 pr-8">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Competitions</h1>
-          <p className="text-slate-400 text-sm mt-0.5">Live leaderboard and competition management</p>
-        </div>
+      {/* ── Main leaderboard ────────────────────────────────────────────── */}
+      <div className="flex-1 flex flex-col gap-6 min-w-0 order-first">
 
-        <div className="bg-ev-panel border border-ev-border rounded-xl shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-ev-border flex items-center justify-between">
-            <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Live Leaderboard</p>
-            <span className="text-xs text-slate-400">{teams.length} teams</span>
+        <div className="flex items-end justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">
+              {selected ? selected.name : "Competitions"}
+            </h1>
+            <div className="flex items-center gap-2 mt-1">
+              {selected && (
+                <span className={`text-xs px-2 py-0.5 rounded-full border font-medium capitalize ${EVENT_COLOURS[selected.event_type] ?? ""}`}>
+                  {EVENT_LABELS[selected.event_type] ?? selected.event_type}
+                </span>
+              )}
+              <p className="text-slate-400 text-sm">
+                {selected
+                  ? `${selected.teams.length} team${selected.teams.length !== 1 ? "s" : ""} enrolled`
+                  : "Select a competition from the panel"}
+              </p>
+            </div>
           </div>
 
-          {loading ? (
-            <p className="px-5 py-4 text-sm text-slate-500">Loading…</p>
-          ) : teams.length === 0 ? (
-            <div className="px-5 py-10 text-center">
-              <p className="text-slate-400 text-sm">No teams registered yet</p>
+          {selected && (
+            <button
+              onClick={() => navigate(`/competitions/${selected.id}`)}
+              className="px-4 py-2 text-sm bg-ev-cyan text-white rounded-lg hover:bg-ev-blue transition-colors"
+            >
+              Open Dashboard →
+            </button>
+          )}
+        </div>
+
+        {loadingDetail ? (
+          <div className="flex-1 flex items-center justify-center">
+            <p className="text-slate-400 text-sm">Loading…</p>
+          </div>
+        ) : !selected ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-center gap-3 opacity-40 select-none">
+            <p className="text-5xl">🏁</p>
+            <p className="text-slate-700 font-medium">No competition selected</p>
+            <p className="text-slate-400 text-sm">Pick one from the panel on the right</p>
+          </div>
+        ) : teamRows.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-center gap-3 opacity-40 select-none">
+            <p className="text-5xl">📋</p>
+            <p className="text-slate-700 font-medium">No teams enrolled</p>
+            <p className="text-slate-400 text-sm">Open the dashboard to add teams to this competition</p>
+          </div>
+        ) : (
+          <div className="bg-ev-panel border border-ev-border rounded-xl shadow-sm overflow-hidden">
+            <div className="grid grid-cols-[2.5rem_1fr_7rem_7rem_7rem_6rem_auto] gap-4 px-5 py-3 border-b border-ev-border">
+              {["#", "Team", "Class", "Live Power", "Energy", "Status", ""].map((h) => (
+                <span key={h} className="text-xs text-slate-400 uppercase tracking-widest font-semibold">{h}</span>
+              ))}
             </div>
-          ) : (
             <div className="divide-y divide-ev-border">
-              {/* Header row */}
-              <div className="px-5 py-2 grid grid-cols-[2rem_1fr_auto_auto] gap-4">
-                <span className="text-xs text-slate-400 uppercase tracking-widest">#</span>
-                <span className="text-xs text-slate-400 uppercase tracking-widest">Team</span>
-                <span className="text-xs text-slate-400 uppercase tracking-widest">Class</span>
-                <span className="text-xs text-slate-400 uppercase tracking-widest text-right">Score</span>
-              </div>
-              {teams.map((team, i) => (
-                <div key={team.id} className="px-5 py-3 grid grid-cols-[2rem_1fr_auto_auto] gap-4 items-center">
+              {teamRows.map(({ team, latest, totalEnergy, penalty, warning }, i) => (
+                <div
+                  key={team.id}
+                  className="grid grid-cols-[2.5rem_1fr_7rem_7rem_7rem_6rem_auto] gap-4 px-5 py-3.5 items-center"
+                >
                   <span className="text-sm font-bold text-slate-400 tabular-nums">{i + 1}</span>
+
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-slate-900 truncate">{team.team_name}</p>
-                    <p className="text-xs text-slate-400">{team.vehicle_type} · ECU {team.ecu_serial ?? "—"}</p>
+                    <p className="text-xs text-slate-400">
+                      {team.vehicle_type} · {team.ecu_serial ? `ESP-${team.ecu_serial}` : "No ESP"}
+                    </p>
                   </div>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 capitalize">
+
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 capitalize w-fit">
                     {team.vehicle_class}
                   </span>
-                  <div className="text-right">
-                    <p className="text-sm font-bold text-slate-300 tabular-nums">—</p>
-                    <p className="text-xs text-slate-400">pts</p>
-                  </div>
+
+                  <span className="text-sm tabular-nums font-medium text-slate-700">
+                    {latest?.avg_power != null ? `${latest.avg_power.toFixed(0)} W` : "—"}
+                  </span>
+
+                  <span className="text-sm tabular-nums font-medium text-slate-700">
+                    {totalEnergy > 0 ? `${totalEnergy.toFixed(3)} Wh` : "—"}
+                  </span>
+
+                  <span>
+                    {penalty ? (
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-500/20 text-red-400">PENALTY</span>
+                    ) : warning ? (
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400">WARNING</span>
+                    ) : (
+                      <span className="text-xs text-green-500 font-medium">OK</span>
+                    )}
+                  </span>
+
+                  <button
+                    onClick={() => navigate(`/competitions/${selected.id}`)}
+                    className="text-xs text-ev-cyan hover:text-ev-blue transition-colors whitespace-nowrap"
+                  >
+                    Dashboard →
+                  </button>
                 </div>
               ))}
             </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── Divider ─────────────────────────────────────────────────────── */}
-      <div className="w-px bg-ev-cyan/30 shrink-0 self-stretch" />
-
-      {/* ── Right: competition list ──────────────────────────────────────── */}
-      <aside className="w-72 shrink-0 flex flex-col gap-4 pl-6">
-
-        {/* Create competition */}
-        <div className="flex gap-2">
-          <input
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-            placeholder="Competition name…"
-            className="flex-1 bg-white border border-ev-border rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-ev-cyan"
-          />
-          <button
-            onClick={handleCreate}
-            disabled={!newName.trim() || creating}
-            className="px-3 py-2 bg-ev-cyan text-white text-sm rounded-lg disabled:opacity-40 hover:bg-ev-blue transition-colors shrink-0"
-          >
-            Create
-          </button>
-        </div>
-
-        {loading ? (
-          <p className="text-slate-500 text-xs">Loading…</p>
-        ) : (
-          <div className="flex flex-col gap-5 overflow-y-auto flex-1">
-
-            {/* Active competition */}
-            <div className="flex flex-col gap-2">
-              <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Active</p>
-              {activeComp ? (
-                <CompCard comp={activeComp} active navigate={navigate} />
-              ) : (
-                <p className="text-slate-500 text-xs">No competitions yet — create one above</p>
-              )}
-            </div>
-
-            {/* Past competitions */}
-            <div className="flex flex-col gap-2">
-              <p className="text-xs text-slate-400 uppercase tracking-widest font-semibold">Past</p>
-              {pastComps.length === 0 ? (
-                <p className="text-slate-500 text-xs">No past competitions</p>
-              ) : (
-                pastComps.map((comp) => (
-                  <CompCard key={comp.id} comp={comp} active={false} navigate={navigate} />
-                ))
-              )}
-            </div>
-
           </div>
         )}
-      </aside>
-    </div>
-  )
-}
+      </div>
 
-function CompCard({
-  comp,
-  active,
-  navigate,
-}: {
-  comp: Competition
-  active: boolean
-  navigate: (path: string) => void
-}) {
-  return (
-    <button
-      onClick={() => navigate(`/competitions/${comp.id}`)}
-      className={[
-        "text-left px-4 py-3 rounded-xl border transition-colors w-full",
-        active
-          ? "bg-ev-blue/10 border-ev-blue/40 hover:bg-ev-blue/20"
-          : "bg-ev-panel border-ev-border hover:bg-slate-50",
-      ].join(" ")}
-    >
-      <div className="flex items-center justify-between gap-2 mb-1">
-        <p className="text-sm font-semibold text-slate-900 truncate">{comp.name}</p>
-        {active && (
-          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-100 text-green-600 shrink-0">
-            Active
-          </span>
-        )}
-      </div>
-      <p className="text-xs text-slate-400 mb-2">
-        {new Date(comp.created_at).toLocaleDateString()}
-      </p>
-      <div className="flex gap-1 flex-wrap">
-        {(["drag", "gymkhana", "endurance"] as const).map((e) => (
-          <span key={e} className="text-xs px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 capitalize">
-            {e}
-          </span>
-        ))}
-      </div>
-    </button>
+      {/* ── Competition sidebar ──────────────────────────────────────────── */}
+      <aside className="w-48 shrink-0 flex flex-col gap-4 order-last border-l border-ev-cyan/30 pl-6">
+        <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Competitions</p>
+        <div className="flex flex-col gap-1 overflow-y-auto flex-1">
+
+          <button
+            onClick={() => setShowCreate(true)}
+            className="text-left px-3 py-2.5 rounded-lg border border-dashed border-ev-cyan/40 text-ev-cyan text-sm hover:bg-ev-cyan/5 transition-colors"
+          >
+            + New Competition
+          </button>
+
+          {competitions.length === 0 ? (
+            <p className="text-slate-500 text-xs px-3 pt-1">No competitions yet</p>
+          ) : (
+            competitions.map((comp) => (
+              <button
+                key={comp.id}
+                onClick={() => selectCompetition(comp)}
+                className={[
+                  "text-left px-3 py-2.5 rounded-lg border transition-colors",
+                  selected?.id === comp.id
+                    ? "bg-ev-orange/10 border-ev-orange/40"
+                    : "border-transparent hover:bg-slate-100",
+                ].join(" ")}
+              >
+                <p className="text-sm font-medium leading-tight text-slate-900">{comp.name}</p>
+                <p className={`text-xs mt-0.5 capitalize font-medium ${EVENT_COLOURS[comp.event_type]?.split(" ")[1] ?? "text-slate-400"}`}>
+                  {EVENT_LABELS[comp.event_type] ?? comp.event_type}
+                </p>
+              </button>
+            ))
+          )}
+        </div>
+      </aside>
+
+      {showCreate && (
+        <CreateCompetitionModal
+          onClose={() => setShowCreate(false)}
+          onDone={() => { setShowCreate(false); loadCompetitions() }}
+        />
+      )}
+    </div>
   )
 }

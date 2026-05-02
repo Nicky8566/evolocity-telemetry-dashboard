@@ -2,13 +2,13 @@ import { Router } from 'express';
 import { getCounterHistory, resetCounter } from '../controllers/counterController.js';
 import { receiveECUData, getECUData, getECUSerials } from '../controllers/ecuController.js';
 import { getAllTeams, saveTeamInfo, getTeamByEcu, updateTeamEcu, getTeamByName, getTeamByTeamId, updateTeamPowerLimit } from '../controllers/teamController.js';
-import { getAllCompetitions, createNewCompetition, getCompetitionDetails, assignTeam, unassignTeam } from '../controllers/competitionController.js';
+import { getAllCompetitions, createNewCompetition, getCompetitionDetails, assignTeam } from '../controllers/competitionController.js';
 import { getAlertsHandler } from '../controllers/alertController.js';
 
 const router = Router();
 
 // Health check
-router.get('/', (req, res) => {
+router.get('/', (_req, res) => {
   res.json({ message: 'EVolocity backend is running.' });
 });
 
@@ -39,6 +39,5 @@ router.post('/competitions', createNewCompetition);
 router.get('/competitions/:id', getCompetitionDetails);
 router.post('/competitions/create', createNewCompetition);
 router.post('/competitions/assign-team', assignTeam);
-router.post('/competitions/unassign-team', unassignTeam);
 
 export default router;

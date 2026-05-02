@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
+import { useNavigate, useParams } from "react-router-dom"
+import { competitionsApi } from "../api/competitions"
 import { teamsApi } from "../api/teams"
 import AlertCard from "../components/ui/AlertCard"
 import ChartCard from "../components/ui/ChartCard"
@@ -6,28 +8,50 @@ import ConfigureTeamModal from "../components/ui/ConfigureTeamModal"
 import CreateTeamModal from "../components/ui/CreateTeamModal"
 import StatCard  from "../components/ui/StatCard"
 import { useTelemetry } from "../context/TelemetryContext"
-import type { Team } from "../types"
+import type { CompetitionDetail, Team } from "../types"
+
+const EVENT_COLOURS: Record<string, string> = {
+  drag:      "bg-ev-cyan/10 text-ev-cyan border-ev-cyan/30",
+  gymkhana:  "bg-purple-500/10 text-purple-400 border-purple-500/30",
+  endurance: "bg-ev-orange/10 text-ev-orange border-ev-orange/30",
+}
 
 export default function Dashboard() {
+  const { id } = useParams<{ id?: string }>()
+  const navigate = useNavigate()
   const { boardData, alerts } = useTelemetry()
 
-  const [teams, setTeams]               = useState<Team[]>([])
+  const [competition, setCompetition]   = useState<CompetitionDetail | null>(null)
+  const [allTeams, setAllTeams]         = useState<Team[]>([])
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null)
-  const [showCreateTeam, setShowCreateTeam]     = useState(false)
-  const [configureTeam, setConfigureTeam]       = useState<Team | null>(null)
+  const [showCreateTeam, setShowCreateTeam]   = useState(false)
+  const [configureTeam, setConfigureTeam]     = useState<Team | null>(null)
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo]     = useState("")
 
+  // When opened from a competition, load that competition's team list
   function loadTeams() {
-    teamsApi.list()
-      .then(({ data }) => setTeams(data))
-      .catch((err) => console.error("Failed to load teams:", err))
+    if (id) {
+      competitionsApi.getById(parseInt(id))
+        .then(({ data }) => {
+          setCompetition(data)
+          setAllTeams(data.teams)
+          if (data.teams.length > 0 && !selectedTeam) setSelectedTeam(data.teams[0])
+        })
+        .catch(console.error)
+    } else {
+      teamsApi.list()
+        .then(({ data }) => setAllTeams(data))
+        .catch(console.error)
+    }
   }
 
-  useEffect(() => { loadTeams() }, [])
+  useEffect(() => { loadTeams() }, [id])
 
-  const boardId    = selectedTeam?.ecu_serial ? `ECU-${selectedTeam.ecu_serial}` : null
-  const frames     = boardId ? (boardData[boardId] ?? []) : []
+  const teams = competition ? competition.teams : allTeams
+
+  const boardId     = selectedTeam?.ecu_serial ? `ECU-${selectedTeam.ecu_serial}` : null
+  const frames      = boardId ? (boardData[boardId] ?? []) : []
   const latestFrame = frames.at(-1) ?? null
 
   const teamAlerts = useMemo(
@@ -61,7 +85,24 @@ export default function Dashboard() {
         {/* Page header */}
         <div className="flex items-end justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
+            {competition && (
+              <button
+                onClick={() => navigate("/")}
+                className="text-xs text-slate-400 hover:text-ev-cyan transition-colors mb-1 block"
+              >
+                ← Competitions
+              </button>
+            )}
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold text-slate-900">
+                {competition ? competition.name : "Dashboard"}
+              </h1>
+              {competition && (
+                <span className={`text-xs px-2 py-0.5 rounded-full border font-medium capitalize ${EVENT_COLOURS[competition.event_type] ?? ""}`}>
+                  {competition.event_type}
+                </span>
+              )}
+            </div>
             <p className="text-slate-400 text-sm mt-0.5">
               {selectedTeam
                 ? `Viewing · ${selectedTeam.team_name} · ECU ${selectedTeam.ecu_serial ?? "unassigned"}`
@@ -120,7 +161,7 @@ export default function Dashboard() {
                 highlight={activePenalty}
                 accentClass="border-t-ev-blue"
               />
-              <StatCard label="Energy" value={latestFrame?.avg_energy?.toFixed(2) ?? null} unit="Wh" accentClass="border-t-green-500" />
+              <StatCard label="Energy" value={latestFrame?.avg_energy?.toFixed(5) ?? null} unit="Wh" accentClass="border-t-green-500" />
             </div>
 
             {/* Graphs */}
@@ -129,7 +170,7 @@ export default function Dashboard() {
               <ChartCard title="Current" data={filteredFrames} dataKey="avg_current" color="#ec9c2c" unit="A" domain={[0, 10]} />
             </div>
 
-            {/* Events */}
+            {/* Alerts */}
             <div className="bg-ev-panel border border-ev-border rounded-xl p-5 flex flex-col gap-3 shadow-sm">
               <div className="flex items-center justify-between">
                 <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Events</p>
@@ -157,7 +198,6 @@ export default function Dashboard() {
       <aside className="w-48 shrink-0 flex flex-col gap-4 order-last border-l border-ev-cyan/30 pl-6">
         <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Teams</p>
         <div className="flex flex-col gap-1 overflow-y-auto flex-1">
-          {/* + New button — same size as team buttons */}
           <button
             onClick={() => setShowCreateTeam(true)}
             className="text-left px-3 py-2.5 rounded-lg border border-dashed border-ev-cyan/40 text-ev-cyan text-sm hover:bg-ev-cyan/5 transition-colors"
@@ -178,7 +218,6 @@ export default function Dashboard() {
                     : "border-transparent hover:bg-slate-100",
                 ].join(" ")}
               >
-                {/* Select area */}
                 <button
                   onClick={() => setSelectedTeam(team)}
                   className="flex-1 text-left px-3 py-2.5"
@@ -188,8 +227,6 @@ export default function Dashboard() {
                     {team.ecu_serial ? `ESP-${team.ecu_serial}` : "No ESP"}
                   </p>
                 </button>
-
-                {/* Heart / configure button */}
                 <button
                   onClick={(e) => { e.stopPropagation(); setConfigureTeam(team) }}
                   className="pr-2.5 text-slate-300 hover:text-ev-orange transition-colors opacity-0 group-hover:opacity-100"
@@ -206,6 +243,7 @@ export default function Dashboard() {
       {showCreateTeam && (
         <CreateTeamModal
           teams={teams}
+          competitionId={competition?.id}
           onClose={() => setShowCreateTeam(false)}
           onDone={() => { setShowCreateTeam(false); loadTeams() }}
         />
@@ -219,7 +257,6 @@ export default function Dashboard() {
           onDone={() => { setConfigureTeam(null); loadTeams() }}
         />
       )}
-
     </div>
   )
 }

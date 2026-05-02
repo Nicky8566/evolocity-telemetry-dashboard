@@ -76,9 +76,11 @@ export async function initDb() {
     CREATE TABLE IF NOT EXISTS competitions (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
       name       TEXT NOT NULL UNIQUE,
+      event_type TEXT CHECK(event_type IN ('drag', 'gymkhana', 'endurance')) NOT NULL DEFAULT 'drag',
       created_at TEXT NOT NULL
     )
   `);
+  try { db.run("ALTER TABLE competitions ADD COLUMN event_type TEXT DEFAULT 'drag'"); } catch (_) {}
 
   // Competition events — always 3 per competition (drag, gymkhana, endurance)
   db.run(`

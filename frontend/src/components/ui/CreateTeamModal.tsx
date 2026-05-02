@@ -1,18 +1,20 @@
 import { useEffect, useMemo, useState } from "react"
+import { competitionsApi } from "../../api/competitions"
 import { ecuApi } from "../../api/ecu"
 import { teamsApi } from "../../api/teams"
 import type { Team } from "../../types"
 
 interface Props {
-  teams:   Team[]
-  onClose: () => void
-  onDone:  () => void
+  teams:          Team[]
+  onClose:        () => void
+  onDone:         () => void
+  competitionId?: number
 }
 
 const EMPTY = { name: "", team_id: "", vehicle_class: "standard", vehicle_type: "kart", ecu_serial: "" }
 interface FieldError { name?: string; team_id?: string }
 
-export default function CreateTeamModal({ teams, onClose, onDone }: Props) {
+export default function CreateTeamModal({ teams, onClose, onDone, competitionId }: Props) {
   const [form, setForm]             = useState({ ...EMPTY })
   const [errors, setErrors]         = useState<FieldError>({})
   const [submitting, setSubmitting] = useState(false)
@@ -58,13 +60,16 @@ export default function CreateTeamModal({ teams, onClose, onDone }: Props) {
     }
 
     try {
-      await teamsApi.create({
+      const { data: team } = await teamsApi.create({
         name:          form.name.trim(),
         team_id:       form.team_id.trim(),
         vehicle_class: form.vehicle_class,
         vehicle_type:  form.vehicle_type,
         ecu_serial:    form.ecu_serial,
       })
+      if (competitionId != null) {
+        await competitionsApi.assignTeam(competitionId, team.id)
+      }
       onDone()
     } catch {
       setErrors({ name: "Failed to create team" })

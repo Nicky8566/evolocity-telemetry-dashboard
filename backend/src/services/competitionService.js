@@ -7,11 +7,11 @@ import {
   competitionNameExists
 } from '../database/competitionDb.js';
 
-export function createCompetition(name) {
+export function createCompetition(name, event_type) {
   if (competitionNameExists(name)) {
     return { error: 'A competition with this name already exists' };
   }
-  const id = insertCompetition(name);
+  const id = insertCompetition(name, event_type);
   return getCompetitionById(id);
 }
 

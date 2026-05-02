@@ -1,21 +1,12 @@
 import { db, persist } from './db.js';
 
-export function insertCompetition(name) {
+export function insertCompetition(name, event_type) {
   db.run(
-    'INSERT INTO competitions (name, created_at) VALUES (?, ?)',
-    [name, new Date().toISOString()]
+    'INSERT INTO competitions (name, event_type, created_at) VALUES (?, ?, ?)',
+    [name, event_type, new Date().toISOString()]
   );
   const result = db.exec('SELECT last_insert_rowid() AS id');
   const competitionId = result[0].values[0][0];
-
-  // Auto-insert all 3 standard event types required by brief
-  for (const eventType of ['drag', 'gymkhana', 'endurance']) {
-    db.run(
-      'INSERT INTO competition_events (competition_id, event_type) VALUES (?, ?)',
-      [competitionId, eventType]
-    );
-  }
-
   persist();
   return competitionId;
 }
@@ -37,18 +28,6 @@ export function getCompetitionById(id) {
     compResult[0].columns.map((col, i) => [col, compResult[0].values[0][i]])
   );
 
-  // Fetch events for this competition
-  const eventsResult = db.exec(
-    'SELECT * FROM competition_events WHERE competition_id = ?',
-    [id]
-  );
-  comp.events = eventsResult.length > 0
-    ? eventsResult[0].values.map(row =>
-        Object.fromEntries(eventsResult[0].columns.map((col, i) => [col, row[i]]))
-      )
-    : [];
-
-  // Fetch associated teams
   const teamsResult = db.exec(
     `SELECT t.* FROM teams t
      JOIN competition_teams ct ON ct.team_id = t.id
