@@ -1,0 +1,15 @@
+{
+  "name": "evolocity-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.18.2",
+    "sql.js": "^1.14.1",
+    "ws": "^8.19.0"
+  }
+}
