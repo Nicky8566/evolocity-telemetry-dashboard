@@ -1,5 +1,6 @@
 import { NavLink } from "react-router-dom"
 import { useTelemetry } from "../../context/TelemetryContext"
+import logo from "../../assets/logo.png"
 
 const links = [
   { to: "/",             label: "Dashboard"    },
@@ -13,12 +14,9 @@ export default function Navbar() {
   const { connected } = useTelemetry()
 
   return (
-    <header className="w-full bg-ev-panel border-b border-ev-border px-6 py-3 flex items-center gap-8 shrink-0">
+    <header className="w-full bg-ev-cyan px-6 py-3 flex items-center gap-8 shrink-0">
       {/* Brand */}
-      <div className="shrink-0">
-        <span className="text-ev-cyan font-bold text-base tracking-wide">EVolocity</span>
-        <span className="text-slate-500 text-xs ml-2">Telemetry</span>
-      </div>
+      <img src={logo} alt="EVolocity" className="h-7 shrink-0" />
 
       {/* Nav links */}
       <nav className="flex items-center gap-1 flex-1">
@@ -29,10 +27,10 @@ export default function Navbar() {
             end={to === "/"}
             className={({ isActive }) =>
               [
-                "px-3 py-1.5 rounded-lg text-sm transition-colors",
+                "px-3 py-1.5 rounded-lg text-sm font-medium transition-colors",
                 isActive
-                  ? "bg-ev-cyan/10 text-ev-cyan font-medium"
-                  : "text-slate-400 hover:text-white hover:bg-white/5",
+                  ? "bg-ev-blue text-white"
+                  : "text-white/70 hover:text-white hover:bg-white/15",
               ].join(" ")
             }
           >
@@ -43,8 +41,8 @@ export default function Navbar() {
 
       {/* Connection status */}
       <div className="flex items-center gap-2 shrink-0">
-        <span className={`w-2 h-2 rounded-full ${connected ? "bg-green-400" : "bg-red-500"}`} />
-        <span className="text-xs text-slate-400">{connected ? "Connected" : "Disconnected"}</span>
+        <span className={`w-2 h-2 rounded-full ${connected ? "bg-green-300" : "bg-red-300"}`} />
+        <span className="text-xs text-white/70">{connected ? "Connected" : "Disconnected"}</span>
       </div>
     </header>
   )

@@ -2,7 +2,7 @@ import type { Alert, Team } from "../../types"
 
 interface Props {
   alert: Alert
-  teams: Team[]   // passed in so we can resolve ecu_serial → team name
+  teams: Team[]
 }
 
 function formatDuration(ms: number | null): string {
@@ -20,52 +20,36 @@ export default function AlertCard({ alert, teams }: Props) {
   const isActive = alert.ended_at === null
 
   return (
-    <div
-      className={[
-        "rounded-xl border p-4 flex flex-col gap-2 transition-colors",
-        isActive
-          ? "border-red-500/60 bg-red-950/30"
-          : "border-ev-border bg-ev-panel",
-      ].join(" ")}
-    >
-      {/* Header row */}
+    <div className={`rounded-xl border p-4 flex flex-col gap-2 transition-colors ${isActive ? "border-red-200 bg-red-50" : "border-ev-border bg-ev-panel"}`}>
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className="text-lg">⚡</span>
           <div>
-            <p className="text-white font-semibold text-sm leading-tight">
+            <p className="text-slate-900 font-semibold text-sm leading-tight">
               {team ? team.team_name : `ESP-${alert.ecu_serial}`}
             </p>
-            {team && (
-              <p className="text-slate-500 text-xs">ESP-{alert.ecu_serial}</p>
-            )}
+            {team && <p className="text-slate-400 text-xs">ESP-{alert.ecu_serial}</p>}
           </div>
         </div>
 
         {isActive ? (
-          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 animate-pulse">
+          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-600 animate-pulse">
             ACTIVE
           </span>
         ) : (
-          <span className="text-xs text-slate-500">
-            {formatTime(alert.started_at)}
-          </span>
+          <span className="text-xs text-slate-400">{formatTime(alert.started_at)}</span>
         )}
       </div>
 
-      {/* Power reading */}
       <div className="flex items-baseline gap-1.5">
-        <span className="text-2xl font-bold text-red-400 tabular-nums">
+        <span className="text-2xl font-bold text-red-500 tabular-nums">
           {alert.power_value.toFixed(0)} W
         </span>
-        <span className="text-slate-400 text-sm">
-          exceeded {alert.threshold} W limit
-        </span>
+        <span className="text-slate-500 text-sm">exceeded {alert.threshold} W limit</span>
       </div>
 
-      {/* Duration */}
-      <p className="text-xs text-slate-500">
-        Duration: <span className="text-slate-300">{formatDuration(alert.duration_ms)}</span>
+      <p className="text-xs text-slate-400">
+        Duration: <span className="text-slate-600">{formatDuration(alert.duration_ms)}</span>
       </p>
     </div>
   )

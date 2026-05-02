@@ -1,10 +1,16 @@
 @import "tailwindcss";
 
 @theme {
-  --color-ev-bg:     #0f172a;
-  --color-ev-panel:  #1e293b;
-  --color-ev-border: #334155;
+  --color-ev-bg:     #f1f5f9;
+  --color-ev-panel:  #ffffff;
+  --color-ev-border: #e2e8f0;
   --color-ev-cyan:   #00a5c8;
   --color-ev-orange: #ec9c2c;
   --color-ev-blue:   #015eac;
+}
+
+@layer base {
+  body {
+    @apply bg-ev-bg text-slate-900;
+  }
 }

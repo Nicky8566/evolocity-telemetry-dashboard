@@ -20,11 +20,14 @@ interface Props {
 
 export default function ChartCard({ title, data, dataKey, color, unit, domain }: Props) {
   return (
-    <div className="bg-ev-panel border border-ev-border rounded-xl p-5">
-      <p className="text-xs text-slate-400 uppercase tracking-widest mb-4">{title}</p>
+    <div className="bg-ev-panel border border-ev-border rounded-xl p-5 shadow-sm" style={{ borderTopColor: color, borderTopWidth: 2 }}>
+      <div className="flex items-center gap-2 mb-4">
+        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+        <p className="text-xs uppercase tracking-widest font-semibold" style={{ color }}>{title}</p>
+      </div>
       <ResponsiveContainer width="100%" height={220}>
         <LineChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
           <XAxis
             dataKey="timeMs"
             tickFormatter={(v) => `${(v / 1000).toFixed(1)}s`}
@@ -38,8 +41,8 @@ export default function ChartCard({ title, data, dataKey, color, unit, domain }:
             tickFormatter={(v) => `${v}${unit}`}
           />
           <Tooltip
-            contentStyle={{ background: "#1e293b", border: "1px solid #334155", borderRadius: 8 }}
-            labelStyle={{ color: "#94a3b8" }}
+            contentStyle={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8, boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }}
+            labelStyle={{ color: "#64748b" }}
             formatter={(v) => [`${Number(v).toFixed(2)} ${unit}`, title]}
             labelFormatter={(l) => `Time: ${(Number(l) / 1000).toFixed(2)}s`}
           />
