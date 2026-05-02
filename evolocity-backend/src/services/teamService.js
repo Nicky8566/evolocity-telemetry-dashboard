@@ -1,4 +1,4 @@
-import { insertTeam, getAllTeams, updateTeamEcu, getTeamByEcu, getTeamByName, getTeamByTeamId, updateTeamPowerLimit as dbUpdateTeamPowerLimit } from '../database/Teamdb.js';
+import { insertTeam, getAllTeams, updateTeamEcu, getTeamByEcu, getTeamByName, getTeamByTeamId, updateTeamPowerLimit as dbUpdateTeamPowerLimit } from '../database/teamDb.js';
 
 export function saveTeam(payload) {
   const { name, team_id, vehicle_class, vehicle_type, ecu_serial, power_limit } = payload;

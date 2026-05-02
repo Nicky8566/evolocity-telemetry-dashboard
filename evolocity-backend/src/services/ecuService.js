@@ -1,5 +1,5 @@
-import { insertECUFrame, getAllECUFrames, getUniqueECUSerials } from '../database/Ecudb.js';
-import { getTeamByEcu } from '../database/Teamdb.js';
+import { insertECUFrame, getAllECUFrames, getUniqueECUSerials } from '../database/ecuDb.js';
+import { getTeamByEcu } from '../database/teamDb.js';
 
 // Scaling formula from electrical team
 // V_real = 22.3 * V_sens (V_sens in volts, divide millivolts by 1000)
