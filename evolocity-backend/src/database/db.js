@@ -98,6 +98,19 @@ export async function initDb() {
     )
   `);
 
+  // Alerts table — one row per power-limit breach event
+  db.run(`
+    CREATE TABLE IF NOT EXISTS alerts (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      ecu_serial  INTEGER NOT NULL,
+      power_value REAL NOT NULL,
+      threshold   REAL NOT NULL,
+      started_at  TEXT NOT NULL,
+      ended_at    TEXT,
+      duration_ms INTEGER
+    )
+  `);
+
   persist();
   console.log('SQLite ready.');
 }

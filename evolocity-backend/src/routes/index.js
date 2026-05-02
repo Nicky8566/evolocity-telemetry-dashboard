@@ -3,6 +3,7 @@ import { getCounterHistory, resetCounter } from '../controllers/counterControlle
 import { receiveECUData, getECUData, getECUSerials } from '../controllers/ecuController.js';
 import { getAllTeams, saveTeamInfo, getTeamByEcu, updateTeamEcu, getTeamByName, getTeamByTeamId, updateTeamPowerLimit } from '../controllers/teamController.js';
 import { getAllCompetitions, createNewCompetition, getCompetitionDetails, assignTeam, unassignTeam } from '../controllers/competitionController.js';
+import { getAlertsHandler } from '../controllers/alertController.js';
 
 const router = Router();
 
@@ -28,6 +29,9 @@ router.get('/teams/team_ids/:team_id', getTeamByTeamId);
 router.post('/teams/create', saveTeamInfo);
 router.post('/teams/update/ecu', updateTeamEcu);
 router.post('/teams/update/power_limit', updateTeamPowerLimit);
+
+// Alerts
+router.get('/alerts', getAlertsHandler);
 
 // Competitions
 router.get('/competitions', getAllCompetitions);
