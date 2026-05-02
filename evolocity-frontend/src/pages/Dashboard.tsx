@@ -7,15 +7,15 @@ import { useTelemetry } from "../context/TelemetryContext"
 import type { Team } from "../types"
 
 export default function Dashboard() {
-  const { boardData, latestFrames, alerts } = useTelemetry()
+  const { boardData, alerts } = useTelemetry()
 
   const [teams, setTeams]               = useState<Team[]>([])
   const [selectedTeam, setSelectedTeam] = useState<Team | null>({
     id: 1, team_name: "Team Thunder", team_id: "T01",
     vehicle_class: "Standard", vehicle_type: "Kart", ecu_serial: 12345,
   })
-  const [dateFrom, setDateFrom]         = useState("")
-  const [dateTo, setDateTo]             = useState("")
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo]     = useState("")
 
   useEffect(() => {
     teamsApi.list()
@@ -23,9 +23,9 @@ export default function Dashboard() {
       .catch((err) => console.error("Failed to load teams:", err))
   }, [])
 
-  const boardId     = selectedTeam?.ecu_serial ? `ECU-${selectedTeam.ecu_serial}` : null
-  const chartData   = boardId ? (boardData[boardId] ?? []) : []
-  const latestFrame = boardId ? (latestFrames[boardId] ?? null) : null
+  const boardId    = selectedTeam?.ecu_serial ? `ECU-${selectedTeam.ecu_serial}` : null
+  const frames     = boardId ? (boardData[boardId] ?? []) : []
+  const latestFrame = frames.at(-1) ?? null
 
   const teamAlerts = useMemo(
     () => selectedTeam
@@ -34,12 +34,20 @@ export default function Dashboard() {
     [alerts, selectedTeam],
   )
 
-  const filteredData = useMemo(() => {
-    if (!dateFrom && !dateTo) return chartData
+  const activePenalty = useMemo(
+    () => teamAlerts.some((a) => a.type === "penalty" && a.ended_at === null),
+    [teamAlerts],
+  )
+
+  const filteredFrames = useMemo(() => {
+    if (!dateFrom && !dateTo) return frames
     const from = dateFrom ? new Date(dateFrom).getTime() : 0
     const to   = dateTo   ? new Date(dateTo).getTime()   : Infinity
-    return chartData.filter((p) => p.timeMs >= from && p.timeMs <= to)
-  }, [chartData, dateFrom, dateTo])
+    return frames.filter((f) => {
+      const t = new Date(f.timestamp).getTime()
+      return t >= from && t <= to
+    })
+  }, [frames, dateFrom, dateTo])
 
   return (
     <div className="flex gap-8 min-h-0 h-full">
@@ -58,7 +66,7 @@ export default function Dashboard() {
             </p>
           </div>
 
-          {/* Date range — inline, no heavy box */}
+          {/* Date range filter */}
           <div className="flex items-end gap-2">
             <div className="flex flex-col gap-1">
               <label className="text-xs text-slate-500">From</label>
@@ -106,7 +114,7 @@ export default function Dashboard() {
                 label="Power"
                 value={latestFrame?.avg_power?.toFixed(1) ?? null}
                 unit="W"
-                highlight={latestFrame?.penalty ?? false}
+                highlight={activePenalty}
                 accentClass="border-t-ev-blue"
               />
               <StatCard label="Energy" value={latestFrame?.avg_energy?.toFixed(2) ?? null} unit="Wh" accentClass="border-t-green-500" />
@@ -114,8 +122,8 @@ export default function Dashboard() {
 
             {/* Graphs */}
             <div className="flex flex-col gap-4">
-              <ChartCard title="Voltage" data={filteredData} dataKey="voltage" color="#00a5c8" unit="V" domain={[0, 60]} />
-              <ChartCard title="Current" data={filteredData} dataKey="current" color="#ec9c2c" unit="A" domain={[0, 10]} />
+              <ChartCard title="Voltage" data={filteredFrames} dataKey="avg_voltage" color="#00a5c8" unit="V" domain={[0, 60]} />
+              <ChartCard title="Current" data={filteredFrames} dataKey="avg_current" color="#ec9c2c" unit="A" domain={[0, 10]} />
             </div>
 
             {/* Events */}

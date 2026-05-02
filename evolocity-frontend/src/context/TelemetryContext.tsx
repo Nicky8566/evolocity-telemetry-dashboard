@@ -6,27 +6,23 @@ import {
   useState,
   type ReactNode,
 } from "react"
-import { toast } from "react-toastify"
-import "react-toastify/dist/ReactToastify.css"
 import { ALERTS_WS_URL, WS_URL } from "../api"
 import { ecuApi } from "../api/ecu"
-import type { Alert, BoardData, ECUFrame, LatestFrames } from "../types"
+import type { Alert, BoardData, ECUFrame } from "../types"
 
 interface TelemetryContextValue {
   connected: boolean
   boardData: BoardData
-  latestFrames: LatestFrames
-  alerts: Alert[]
+  alerts:    Alert[]
 }
 
 const TelemetryContext = createContext<TelemetryContextValue | null>(null)
 
 export function TelemetryProvider({ children }: { children: ReactNode }) {
-  const [connected, setConnected]       = useState(false)
-  const [boardData, setBoardData]       = useState<BoardData>({})
-  const [latestFrames, setLatestFrames] = useState<LatestFrames>({})
-  const [alerts, setAlerts]             = useState<Alert[]>([])
-  const zeroTimeoutsRef                 = useRef<Record<string, number>>({})
+  const [connected, setConnected] = useState(false)
+  const [boardData, setBoardData] = useState<BoardData>({})
+  const [alerts, setAlerts]       = useState<Alert[]>([])
+  const zeroTimeoutsRef           = useRef<Record<string, number>>({})
 
   // Pre-populate charts with stored history on first load
   useEffect(() => {
@@ -38,11 +34,7 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
         rows.forEach((row) => {
           const boardId = `ECU-${row.ecu_serial}`
           if (!grouped[boardId]) grouped[boardId] = []
-          grouped[boardId].push({
-            timeMs:  grouped[boardId].length * 100,
-            voltage: row.avg_voltage,
-            current: row.avg_current ?? null,
-          })
+          grouped[boardId].push(row)
         })
         setBoardData(grouped)
       })
@@ -65,31 +57,29 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
         const frame: ECUFrame = msg.data
         const boardId = `ECU-${frame.ecu_serial}`
 
-        setLatestFrames((prev) => ({ ...prev, [boardId]: frame }))
         window.clearTimeout(zeroTimeoutsRef.current[boardId])
 
         setBoardData((prev) => {
-          const existing   = prev[boardId] ?? []
-          const lastTimeMs = existing.length > 0 ? existing[existing.length - 1].timeMs : 0
-          const updated    = [
-            ...existing,
-            { timeMs: lastTimeMs + 100, voltage: frame.avg_voltage, current: frame.avg_current },
-          ].slice(-200)
+          const updated = [...(prev[boardId] ?? []), frame].slice(-200)
           return { ...prev, [boardId]: updated }
         })
 
-        // If this board goes silent for 3s, drop voltage to 0 on the chart
+        // 3s silence → inject a zero frame so the chart drops to 0
         zeroTimeoutsRef.current[boardId] = window.setTimeout(() => {
           setBoardData((prev) => {
             const existing = prev[boardId] ?? []
             if (existing.length === 0) return prev
             const last = existing[existing.length - 1]
-            if (last.voltage === 0) return prev
-            const updated = [
-              ...existing,
-              { timeMs: last.timeMs + 100, voltage: 0, current: 0 },
-            ].slice(-200)
-            return { ...prev, [boardId]: updated }
+            if (last.avg_voltage === 0) return prev
+            const zeroFrame: ECUFrame = {
+              ...last,
+              timestamp:   new Date().toISOString(),
+              avg_voltage: 0,
+              avg_current: 0,
+              avg_power:   null,
+              avg_energy:  null,
+            }
+            return { ...prev, [boardId]: [...existing, zeroFrame].slice(-200) }
           })
         }, 3000)
       } catch {
@@ -112,17 +102,8 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
       try {
         const msg = JSON.parse(event.data as string)
         if (msg.type !== "alert") return
-
         const alert: Alert = msg.data
-
-        // Prepend so newest alert is always at the top
         setAlerts((prev) => [alert, ...prev])
-
-        // Fire a toast so the user sees it regardless of which page they're on
-        toast.error(
-          `⚡ ESP-${alert.ecu_serial} — ${alert.power_value}W exceeded ${alert.threshold}W`,
-          { toastId: `alert-${alert.id}` },
-        )
       } catch {
         // ignore malformed messages
       }
@@ -132,7 +113,7 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <TelemetryContext.Provider value={{ connected, boardData, latestFrames, alerts }}>
+    <TelemetryContext.Provider value={{ connected, boardData, alerts }}>
       {children}
     </TelemetryContext.Provider>
   )

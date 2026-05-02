@@ -7,20 +7,27 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
-import type { Point } from "../../types"
+import type { ECUFrame } from "../../types"
 
 interface Props {
   title:   string
-  data:    Point[]
-  dataKey: "voltage" | "current"
+  data:    ECUFrame[]
+  dataKey: "avg_voltage" | "avg_current"
   color:   string
   unit:    string
   domain:  [number, number]
 }
 
+function fmtTime(iso: string) {
+  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+}
+
 export default function ChartCard({ title, data, dataKey, color, unit, domain }: Props) {
   return (
-    <div className="bg-ev-panel border border-ev-border rounded-xl p-5 shadow-sm" style={{ borderTopColor: color, borderTopWidth: 2 }}>
+    <div
+      className="bg-ev-panel border border-ev-border rounded-xl p-5 shadow-sm"
+      style={{ borderTopColor: color, borderTopWidth: 2 }}
+    >
       <div className="flex items-center gap-2 mb-4">
         <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
         <p className="text-xs uppercase tracking-widest font-semibold" style={{ color }}>{title}</p>
@@ -29,8 +36,8 @@ export default function ChartCard({ title, data, dataKey, color, unit, domain }:
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
           <XAxis
-            dataKey="timeMs"
-            tickFormatter={(v) => `${(v / 1000).toFixed(1)}s`}
+            dataKey="timestamp"
+            tickFormatter={fmtTime}
             minTickGap={30}
             tick={{ fill: "#94a3b8", fontSize: 11 }}
           />
@@ -44,7 +51,7 @@ export default function ChartCard({ title, data, dataKey, color, unit, domain }:
             contentStyle={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8, boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }}
             labelStyle={{ color: "#64748b" }}
             formatter={(v) => [`${Number(v).toFixed(2)} ${unit}`, title]}
-            labelFormatter={(l) => `Time: ${(Number(l) / 1000).toFixed(2)}s`}
+            labelFormatter={(l) => `Time: ${fmtTime(l as string)}`}
           />
           <Line
             type="linear"
