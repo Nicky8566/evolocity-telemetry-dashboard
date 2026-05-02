@@ -39,8 +39,9 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
           const boardId = `ECU-${row.ecu_serial}`
           if (!grouped[boardId]) grouped[boardId] = []
           grouped[boardId].push({
-            timeMs: grouped[boardId].length * 100,
+            timeMs:  grouped[boardId].length * 100,
             voltage: row.avg_voltage,
+            current: row.avg_current ?? null,
           })
         })
         setBoardData(grouped)
@@ -72,7 +73,7 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
           const lastTimeMs = existing.length > 0 ? existing[existing.length - 1].timeMs : 0
           const updated    = [
             ...existing,
-            { timeMs: lastTimeMs + 100, voltage: frame.avg_voltage },
+            { timeMs: lastTimeMs + 100, voltage: frame.avg_voltage, current: frame.avg_current },
           ].slice(-200)
           return { ...prev, [boardId]: updated }
         })
@@ -86,7 +87,7 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
             if (last.voltage === 0) return prev
             const updated = [
               ...existing,
-              { timeMs: last.timeMs + 100, voltage: 0 },
+              { timeMs: last.timeMs + 100, voltage: 0, current: 0 },
             ].slice(-200)
             return { ...prev, [boardId]: updated }
           })

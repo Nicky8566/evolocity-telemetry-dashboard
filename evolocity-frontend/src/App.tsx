@@ -4,15 +4,17 @@ import Dashboard    from "./pages/Dashboard"
 import Teams        from "./pages/Teams"
 import Competitions from "./pages/Competitions"
 import Leaderboard  from "./pages/Leaderboard"
+import Alerts       from "./pages/Alerts"
 
 export default function App() {
   return (
     <Routes>
       <Route element={<Layout />}>
-        <Route index             element={<Dashboard />}    />
-        <Route path="teams"        element={<Teams />}        />
-        <Route path="competitions" element={<Competitions />} />
-        <Route path="leaderboard"  element={<Leaderboard />}  />
+        <Route index                element={<Dashboard />}    />
+        <Route path="teams"         element={<Teams />}        />
+        <Route path="competitions"  element={<Competitions />} />
+        <Route path="leaderboard"   element={<Leaderboard />}  />
+        <Route path="alerts"        element={<Alerts />}       />
       </Route>
     </Routes>
   )

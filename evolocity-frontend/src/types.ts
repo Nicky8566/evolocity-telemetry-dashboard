@@ -5,6 +5,8 @@ export interface ECUFrame {
   current_samples: number[]
   avg_voltage: number
   avg_current: number | null
+  avg_power:   number | null
+  avg_energy:  number | null  // cumulative Wh
   penalty: boolean
 }
 
@@ -43,8 +45,9 @@ export interface CreateTeamPayload {
 }
 
 export interface Point {
-  timeMs: number
+  timeMs:  number
   voltage: number
+  current: number | null
 }
 
 export type BoardData = Record<string, Point[]>

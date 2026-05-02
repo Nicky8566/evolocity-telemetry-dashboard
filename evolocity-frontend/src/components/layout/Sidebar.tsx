@@ -6,6 +6,7 @@ const links = [
   { to: "/teams",        label: "Teams",        icon: "🏁" },
   { to: "/competitions", label: "Competitions", icon: "🏆" },
   { to: "/leaderboard",  label: "Leaderboard",  icon: "⚡" },
+  { to: "/alerts",       label: "Alerts",       icon: "🚨" },
 ]
 
 export default function Sidebar() {
