@@ -20,7 +20,17 @@ export interface Competition {
   id:         number
   name:       string
   created_at: string
-  events?:    string[]
+}
+
+export interface CompetitionEvent {
+  id:             number
+  competition_id: number
+  event_type:     "drag" | "gymkhana" | "endurance"
+}
+
+export interface CompetitionDetail extends Competition {
+  events: CompetitionEvent[]
+  teams:  Team[]
 }
 
 export interface CreateTeamPayload {
