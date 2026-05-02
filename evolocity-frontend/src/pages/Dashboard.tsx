@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 import { teamsApi } from "../api/teams"
 import AlertCard from "../components/ui/AlertCard"
 import ChartCard from "../components/ui/ChartCard"
+import ConfigureTeamModal from "../components/ui/ConfigureTeamModal"
 import CreateTeamModal from "../components/ui/CreateTeamModal"
 import StatCard  from "../components/ui/StatCard"
 import { useTelemetry } from "../context/TelemetryContext"
@@ -12,7 +13,8 @@ export default function Dashboard() {
 
   const [teams, setTeams]               = useState<Team[]>([])
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null)
-  const [showCreateTeam, setShowCreateTeam] = useState(false)
+  const [showCreateTeam, setShowCreateTeam]     = useState(false)
+  const [configureTeam, setConfigureTeam]       = useState<Team | null>(null)
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo]     = useState("")
 
@@ -153,35 +155,49 @@ export default function Dashboard() {
 
       {/* ── Team panel ──────────────────────────────────────────────────── */}
       <aside className="w-48 shrink-0 flex flex-col gap-4 order-last border-l border-ev-cyan/30 pl-6">
-        <div className="flex items-center justify-between">
-          <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Teams</p>
+        <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Teams</p>
+        <div className="flex flex-col gap-1 overflow-y-auto flex-1">
+          {/* + New button — same size as team buttons */}
           <button
             onClick={() => setShowCreateTeam(true)}
-            className="text-xs text-ev-cyan hover:text-ev-blue font-medium transition-colors"
+            className="text-left px-3 py-2.5 rounded-lg border border-dashed border-ev-cyan/40 text-ev-cyan text-sm hover:bg-ev-cyan/5 transition-colors"
           >
-            + New
+            + New Team
           </button>
-        </div>
-        <div className="flex flex-col gap-1 overflow-y-auto flex-1">
+
           {teams.length === 0 ? (
-            <p className="text-slate-600 text-xs">No teams registered</p>
+            <p className="text-slate-500 text-xs px-3 pt-1">No teams registered</p>
           ) : (
             teams.map((team) => (
-              <button
+              <div
                 key={team.id}
-                onClick={() => setSelectedTeam(team)}
                 className={[
-                  "text-left px-3 py-2.5 rounded-lg border transition-colors",
+                  "group relative flex items-center rounded-lg border transition-colors",
                   selectedTeam?.id === team.id
-                    ? "bg-ev-blue text-white border-ev-blue"
-                    : "border-transparent text-slate-500 hover:text-slate-900 hover:bg-slate-100",
+                    ? "bg-ev-orange/10 border-ev-orange/40"
+                    : "border-transparent hover:bg-slate-100",
                 ].join(" ")}
               >
-                <p className="text-sm font-medium leading-tight text-slate-900">{team.team_name}</p>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  {team.ecu_serial ? `ESP-${team.ecu_serial}` : "No ESP"}
-                </p>
-              </button>
+                {/* Select area */}
+                <button
+                  onClick={() => setSelectedTeam(team)}
+                  className="flex-1 text-left px-3 py-2.5"
+                >
+                  <p className="text-sm font-medium leading-tight text-slate-900">{team.team_name}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {team.ecu_serial ? `ESP-${team.ecu_serial}` : "No ESP"}
+                  </p>
+                </button>
+
+                {/* Heart / configure button */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); setConfigureTeam(team) }}
+                  className="pr-2.5 text-slate-300 hover:text-ev-orange transition-colors opacity-0 group-hover:opacity-100"
+                  title="Configure ESP"
+                >
+                  ⚙
+                </button>
+              </div>
             ))
           )}
         </div>
@@ -192,6 +208,15 @@ export default function Dashboard() {
           teams={teams}
           onClose={() => setShowCreateTeam(false)}
           onDone={() => { setShowCreateTeam(false); loadTeams() }}
+        />
+      )}
+
+      {configureTeam && (
+        <ConfigureTeamModal
+          team={configureTeam}
+          teams={teams}
+          onClose={() => setConfigureTeam(null)}
+          onDone={() => { setConfigureTeam(null); loadTeams() }}
         />
       )}
 
