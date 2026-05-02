@@ -1,48 +1,65 @@
-import { getTeams, saveTeam, getTeamByEcuSerial, updateTeamEcuSerial, getTeamByTeamName, getTeamByTeamID } from '../services/teamService.js';
+import { getTeams, saveTeam, getTeamByEcuSerial, updateTeamEcuSerial, getTeamByTeamName, getTeamByTeamID, updateTeamPowerLimit as setPowerLimit } from '../services/teamService.js';
 import { broadcast } from '../../websocket.js';
 
 export function getAllTeams(req, res) {
-	const rows = getTeams();
-	res.json({ count: rows.length, data: rows });
+  const rows = getTeams();
+  res.json({ count: rows.length, data: rows });
 }
 
 export function saveTeamInfo(req, res) {
-	console.log('Headers:', req.headers);
-  console.log('Body:', req.body); 
-  const payload = req.body;
-	saveTeam(payload);
-	broadcast({
-    type: 'team',
-    data: payload
-  });
-	res.json({ message: 'Saved new team' });
+  const { name, team_id, vehicle_class, vehicle_type } = req.body;
+
+  // Validation — was missing entirely, garbage data could go straight to DB
+  if (!name || !team_id || !vehicle_class || !vehicle_type) {
+    return res.status(400).json({
+      error: 'Missing required fields: name, team_id, vehicle_class, vehicle_type'
+    });
+  }
+
+  const validClasses = ['standard', 'open'];
+  const validTypes = ['kart', 'bike'];
+
+  if (!validClasses.includes(vehicle_class.toLowerCase())) {
+    return res.status(400).json({ error: 'vehicle_class must be standard or open' });
+  }
+  if (!validTypes.includes(vehicle_type.toLowerCase())) {
+    return res.status(400).json({ error: 'vehicle_type must be kart or bike' });
+  }
+
+  const id = saveTeam(req.body);
+  broadcast({ type: 'team', data: { ...req.body, id } });
+  res.json({ message: 'Saved new team', id });
 }
 
 export function updateTeamEcu(req, res) {
-	console.log('Headers:', req.headers);
-  console.log('Body:', req.body); 
   const payload = req.body;
-	updateTeamEcuSerial(payload);
-	res.json({ message: 'Updated team ecu' });
+  if (payload.id == null) {
+    return res.status(400).json({ error: 'Missing required field: id' });
+  }
+  updateTeamEcuSerial(payload);
+  res.json({ message: 'Updated team ecu' });
 }
 
 export function getTeamByEcu(req, res) {
-	console.log('Params:', req.params);
-  const payload = req.params.ecu_serial;
-	const rows = getTeamByEcuSerial(payload);
-	res.json({ count: rows.length, data: rows });
+  const rows = getTeamByEcuSerial(req.params.ecu_serial);
+  res.json({ count: rows.length, data: rows });
 }
 
 export function getTeamByName(req, res) {
-	console.log('Params:', req.params);
-  const payload = req.params.team_name;
-	const rows = getTeamByTeamName(payload);
-	res.json({ count: rows.length, data: rows });
+  const rows = getTeamByTeamName(req.params.team_name);
+  res.json({ count: rows.length, data: rows });
 }
 
 export function getTeamByTeamId(req, res) {
-	console.log('Params:', req.params);
-  const payload = req.params.team_id;
-	const rows = getTeamByTeamID(payload);
-	res.json({ count: rows.length, data: rows });
+  const rows = getTeamByTeamID(req.params.team_id);
+  res.json({ count: rows.length, data: rows });
+}
+
+export function updateTeamPowerLimit(req, res) {
+  const { id, power_limit } = req.body;
+  if (id == null) {
+    return res.status(400).json({ error: 'Missing required field: id' });
+  }
+  setPowerLimit(id, power_limit ?? null);
+  res.json({ message: 'Updated team power limit' });
 }

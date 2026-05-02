@@ -1,4 +1,4 @@
-import { insertValue, getAllValues, clearAllValues } from '../database/db.js';
+import { insertValue, getAllValues, clearAllValues } from '../database/counterDb.js';
 
 export function saveCounter(value) {
   insertValue(value);

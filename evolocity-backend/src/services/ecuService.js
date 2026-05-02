@@ -1,45 +1,45 @@
-import { insertECUFrame, getAllECUFrames } from '../database/db.js';
+import { insertECUFrame, getAllECUFrames, getUniqueECUSerials } from '../database/Ecudb.js';
+import { getTeamByEcu } from '../database/Teamdb.js';
 
-// Scaling formula from electrical team 
-// V_real = 22.3 * V_sens  (V_sens in volts, so divide millivolts by 1000)
+// Scaling formula from electrical team
+// V_real = 22.3 * V_sens (V_sens in volts, divide millivolts by 1000)
 function scaleVoltage(millivolts) {
-  const V_sens = millivolts / 1000;   // convert mV → V
-  return 22.3 * V_sens;               // scale up to real voltage
+  const V_sens = millivolts / 1000;
+  return 22.3 * V_sens;
 }
 
-// function scaleCurrent(milliamp) {
-//   return ((milliamp - 1.65) / 0.01037);  // scale up to real current
-// }
+// Power limit resolution order: custom per-team override → vehicle class default → open class fallback
+function getPowerLimit(ecu_serial) {
+  const teams = getTeamByEcu(ecu_serial);
+  if (teams.length === 0) return 2000;
+  if (teams[0].power_limit != null) return teams[0].power_limit;
+  const vehicleClass = teams[0].vehicle_class?.toLowerCase();
+  return vehicleClass === 'standard' ? 350 : 2000;
+}
 
 export function processECUFrame(payload) {
-  const { ecu_serial, timestamp, voltage_samples, current_samples} = payload;
+  const { ecu_serial, timestamp, voltage_samples, current_samples } = payload;
 
-  // Average the 10 raw millivolt readings
-  // const avgRawMv = voltage_samples.reduce((sum, v) => sum + v, 0) / voltage_samples.length;
-  // const avg_voltage = scaleVoltage(avgRawMv);
-
-  // Scale each sample individually
   const scaled_voltage_samples = voltage_samples.map(mv => scaleVoltage(mv));
-  const avg_voltage = scaled_voltage_samples.reduce((sum, v) => sum + v, 0) / scaled_voltage_samples.length; // keep for DB schema compat
+  const avg_voltage = scaled_voltage_samples.reduce((sum, v) => sum + v, 0) / scaled_voltage_samples.length;
 
- // No scaling needed — current arrives in amps directly
- const scaled_current_samples = current_samples;
- const avg_current = scaled_current_samples.reduce((sum, v) => sum + v, 0) / scaled_current_samples.length;
+  // Current arrives in amps directly — no scaling needed
+  const scaled_current_samples = current_samples;
+  const avg_current = scaled_current_samples.reduce((sum, v) => sum + v, 0) / scaled_current_samples.length;
 
-  // const avg_current = payload.current_mv != null
-  //   ? (payload.current_mv / 1000 - 1.65) / 0.01037
-  //   : null;
-
-  const power = avg_current != null ? avg_voltage * avg_current : null;
-  const penalty = power != null && power > 2000;
+  const powerLimit = getPowerLimit(ecu_serial);
+  const power = avg_voltage * avg_current;
+  const penalty = power > powerLimit;
 
   const frame = {
     ecu_serial,
     timestamp,
-    voltage_samples: scaled_voltage_samples, // now scaled individually
-    current_samples: scaled_current_samples, // now scaled individually
+    voltage_samples: scaled_voltage_samples,
+    current_samples: scaled_current_samples,
     avg_voltage,
     avg_current,
+    power,
+    power_limit: powerLimit,
     penalty
   };
 
@@ -47,6 +47,10 @@ export function processECUFrame(payload) {
   return frame;
 }
 
-export function getECUHistory() {
-  return getAllECUFrames();
+export function getECUHistory(limit = 1000) {
+  return getAllECUFrames(limit);
+}
+
+export function getECUSerials() {
+  return getUniqueECUSerials();
 }

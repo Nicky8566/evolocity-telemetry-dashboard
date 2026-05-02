@@ -1,48 +1,41 @@
-import { insertTeam, getAllTeams, updateTeamEcu, getTeamByEcu, getTeamByName, getTeamByTeamId } from '../database/db.js';
+import { insertTeam, getAllTeams, updateTeamEcu, getTeamByEcu, getTeamByName, getTeamByTeamId, updateTeamPowerLimit as dbUpdateTeamPowerLimit } from '../database/Teamdb.js';
 
-// function to save team information
 export function saveTeam(payload) {
-	const { name, team_id, vehicle_class, vehicle_type, ecu_serial } = payload;
-	let ecu = ecu_serial;
-	if (ecu_serial === "") {
-		ecu = null;
-	}
-	const team = {
-		team_name: name,
-		team_id: team_id,
-		vehicle_class: vehicle_class,
-		vehicle_type: vehicle_type,
-		ecu_serial: ecu
-	}
-	
-	insertTeam(team);
+  const { name, team_id, vehicle_class, vehicle_type, ecu_serial, power_limit } = payload;
+  return insertTeam({
+    team_name: name,
+    team_id,
+    vehicle_class: vehicle_class.toLowerCase(),
+    vehicle_type: vehicle_type.toLowerCase(),
+    ecu_serial: ecu_serial || null,
+    power_limit: power_limit ?? null,
+  });
+}
+
+export function updateTeamPowerLimit(id, power_limit) {
+  dbUpdateTeamPowerLimit(id, power_limit ?? null);
 }
 
 export function getTeams() {
-	return getAllTeams();
+  return getAllTeams();
 }
 
 export function updateTeamEcuSerial(payload) {
-	const { id, ecu_serial } = payload;
-	let ecu = ecu_serial;
-	if (ecu_serial === "") {
-		ecu = null;
-	}
-	const team = {
-		id: id,
-		ecu_serial: ecu
-	}
-	updateTeamEcu(team);
+  const { id, ecu_serial } = payload;
+  updateTeamEcu({
+    id,
+    ecu_serial: ecu_serial || null
+  });
 }
 
 export function getTeamByEcuSerial(ecu_serial) {
-	return getTeamByEcu(parseInt(ecu_serial));
+  return getTeamByEcu(parseInt(ecu_serial));
 }
 
 export function getTeamByTeamName(team_name) {
-	return getTeamByName(team_name);
+  return getTeamByName(team_name);
 }
 
 export function getTeamByTeamID(team_id) {
-	return getTeamByTeamId(team_id);
+  return getTeamByTeamId(team_id);
 }
