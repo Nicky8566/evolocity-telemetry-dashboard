@@ -49,3 +49,13 @@ export interface Point {
 
 export type BoardData = Record<string, Point[]>
 export type LatestFrames = Record<string, ECUFrame>
+
+export interface Alert {
+  id: number
+  ecu_serial: number
+  power_value: number      // peak power during the breach (W)
+  threshold: number        // limit that was exceeded (W)
+  started_at: string       // ISO — when power first crossed the threshold
+  ended_at: string | null  // ISO — when it dropped back below (null = still active)
+  duration_ms: number | null
+}

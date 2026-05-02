@@ -6,14 +6,17 @@ import {
   useState,
   type ReactNode,
 } from "react"
-import { WS_URL } from "../api"
+import { toast } from "react-toastify"
+import "react-toastify/dist/ReactToastify.css"
+import { ALERTS_WS_URL, WS_URL } from "../api"
 import { ecuApi } from "../api/ecu"
-import type { BoardData, ECUFrame, LatestFrames } from "../types"
+import type { Alert, BoardData, ECUFrame, LatestFrames } from "../types"
 
 interface TelemetryContextValue {
   connected: boolean
   boardData: BoardData
   latestFrames: LatestFrames
+  alerts: Alert[]
 }
 
 const TelemetryContext = createContext<TelemetryContextValue | null>(null)
@@ -22,6 +25,7 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
   const [connected, setConnected]       = useState(false)
   const [boardData, setBoardData]       = useState<BoardData>({})
   const [latestFrames, setLatestFrames] = useState<LatestFrames>({})
+  const [alerts, setAlerts]             = useState<Alert[]>([])
   const zeroTimeoutsRef                 = useRef<Record<string, number>>({})
 
   // Pre-populate charts with stored history on first load
@@ -44,7 +48,7 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
       .catch((err) => console.error("Failed to load ECU history:", err))
   }, [])
 
-  // WebSocket — opens once here, survives all page navigation
+  // Data WebSocket — telemetry frames at 10Hz
   useEffect(() => {
     const ws = new WebSocket(WS_URL)
 
@@ -60,13 +64,9 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
         const frame: ECUFrame = msg.data
         const boardId = `ECU-${frame.ecu_serial}`
 
-        // Keep latest frame per board so Dashboard can do voltage monitoring
         setLatestFrames((prev) => ({ ...prev, [boardId]: frame }))
-
-        // Clear any pending zero-point timeout for this board
         window.clearTimeout(zeroTimeoutsRef.current[boardId])
 
-        // Append new point to rolling 200-point buffer
         setBoardData((prev) => {
           const existing   = prev[boardId] ?? []
           const lastTimeMs = existing.length > 0 ? existing[existing.length - 1].timeMs : 0
@@ -103,14 +103,40 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  // Alerts WebSocket — separate connection, low volume
+  useEffect(() => {
+    const ws = new WebSocket(ALERTS_WS_URL)
+
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data as string)
+        if (msg.type !== "alert") return
+
+        const alert: Alert = msg.data
+
+        // Prepend so newest alert is always at the top
+        setAlerts((prev) => [alert, ...prev])
+
+        // Fire a toast so the user sees it regardless of which page they're on
+        toast.error(
+          `⚡ ESP-${alert.ecu_serial} — ${alert.power_value}W exceeded ${alert.threshold}W`,
+          { toastId: `alert-${alert.id}` },
+        )
+      } catch {
+        // ignore malformed messages
+      }
+    }
+
+    return () => ws.close()
+  }, [])
+
   return (
-    <TelemetryContext.Provider value={{ connected, boardData, latestFrames }}>
+    <TelemetryContext.Provider value={{ connected, boardData, latestFrames, alerts }}>
       {children}
     </TelemetryContext.Provider>
   )
 }
 
-// Custom hook — throws a helpful error if used outside the provider
 export function useTelemetry() {
   const ctx = useContext(TelemetryContext)
   if (!ctx) throw new Error("useTelemetry must be used inside <TelemetryProvider>")
