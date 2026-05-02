@@ -214,8 +214,8 @@ function CreateTeam() {
 	}, []);
 
 	function clearForm() {
-		document.getElementById("name").value = "";
-		document.getElementById("id").value = "";
+		setTeamName("");
+		setTeamId("");
 	}
 
 	return (
