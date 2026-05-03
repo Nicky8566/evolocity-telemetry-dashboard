@@ -2,6 +2,8 @@ import { processECUFrame, getECUHistory, getECUSerials as fetchSerials } from '.
 import { broadcast } from '../../websocket.js';
 
 export function receiveECUData(req, res) {
+  console.log('[ECU] incoming request from', req.ip, req.method, req.originalUrl);
+  console.log('[ECU] payload:', JSON.stringify(req.body, null, 2));
   const payload = req.body;
 
   if (!payload.ecu_serial || !payload.timestamp || !Array.isArray(payload.voltage_samples) || !Array.isArray(payload.current_samples)) {
