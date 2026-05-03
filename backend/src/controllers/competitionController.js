@@ -3,6 +3,7 @@ import {
   getCompetitions,
   getCompetition,
   assignTeamToCompetition,
+  unassignTeamFromCompetition,
 } from '../services/competitionService.js';
 
 export function getAllCompetitions(req, res) {
@@ -49,3 +50,14 @@ export function assignTeam(req, res) {
   res.json({ message: 'Team assigned to competition' });
 }
 
+export function unassignTeam(req, res) {
+  const { competition_id, team_id } = req.body;
+
+  if (!competition_id || !team_id) {
+    return res.status(400).json({ error: 'competition_id and team_id are required' });
+  }
+
+  unassignTeamFromCompetition(competition_id, team_id);
+
+  res.json({ message: 'Team unassigned from competition' });
+}

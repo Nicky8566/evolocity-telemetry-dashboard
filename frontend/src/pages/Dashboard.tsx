@@ -1,87 +1,112 @@
-import { useEffect, useMemo, useState } from "react"
-import { useNavigate, useParams } from "react-router-dom"
-import { competitionsApi } from "../api/competitions"
-import { teamsApi } from "../api/teams"
-import AlertCard from "../components/ui/AlertCard"
-import ChartCard from "../components/ui/ChartCard"
-import ConfigureTeamModal from "../components/ui/ConfigureTeamModal"
-import CreateTeamModal from "../components/ui/CreateTeamModal"
-import StatCard  from "../components/ui/StatCard"
-import { useTelemetry } from "../context/TelemetryContext"
-import type { CompetitionDetail, Team } from "../types"
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { competitionsApi } from "../api/competitions";
+import { teamsApi } from "../api/teams";
+import AlertCard from "../components/ui/AlertCard";
+import ChartCard from "../components/ui/ChartCard";
+import ConfigureTeamModal from "../components/ui/ConfigureTeamModal";
+import CreateTeamModal from "../components/ui/CreateTeamModal";
+import StatCard from "../components/ui/StatCard";
+import { useTelemetry } from "../context/TelemetryContext";
+import type { CompetitionDetail, Team } from "../types";
+import ConfirmUnassignModal from "../components/ui/ConfirmUnassignModal";
 
 const EVENT_COLOURS: Record<string, string> = {
-  drag:      "bg-ev-cyan/10 text-ev-cyan border-ev-cyan/30",
-  gymkhana:  "bg-purple-500/10 text-purple-400 border-purple-500/30",
+  drag: "bg-ev-cyan/10 text-ev-cyan border-ev-cyan/30",
+  gymkhana: "bg-purple-500/10 text-purple-400 border-purple-500/30",
   endurance: "bg-ev-orange/10 text-ev-orange border-ev-orange/30",
-}
+};
 
 export default function Dashboard() {
-  const { id } = useParams<{ id?: string }>()
-  const navigate = useNavigate()
-  const { boardData, alerts } = useTelemetry()
+  const { id } = useParams<{ id?: string }>();
+  const navigate = useNavigate();
+  const { boardData, alerts } = useTelemetry();
 
-  const [competition, setCompetition]   = useState<CompetitionDetail | null>(null)
-  const [allTeams, setAllTeams]         = useState<Team[]>([])
-  const [selectedTeam, setSelectedTeam] = useState<Team | null>(null)
-  const [showCreateTeam, setShowCreateTeam]   = useState(false)
-  const [configureTeam, setConfigureTeam]     = useState<Team | null>(null)
-  const [dateFrom, setDateFrom] = useState("")
-  const [dateTo, setDateTo]     = useState("")
+  const [competition, setCompetition] = useState<CompetitionDetail | null>(
+    null,
+  );
+  const [allTeams, setAllTeams] = useState<Team[]>([]);
+  const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
+  const [showCreateTeam, setShowCreateTeam] = useState(false);
+  const [teamToUnassign, setTeamToUnassign] = useState<Team | null>(null);
+  const [configureTeam, setConfigureTeam] = useState<Team | null>(null);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   // When opened from a competition, load that competition's team list
   function loadTeams() {
     if (id) {
-      competitionsApi.getById(parseInt(id))
+      competitionsApi
+        .getById(parseInt(id))
         .then(({ data }) => {
-          setCompetition(data)
-          setAllTeams(data.teams)
-          if (data.teams.length > 0 && !selectedTeam) setSelectedTeam(data.teams[0])
+          setCompetition(data);
+          setAllTeams(data.teams);
+          if (data.teams.length > 0 && !selectedTeam)
+            setSelectedTeam(data.teams[0]);
         })
-        .catch(console.error)
+        .catch(console.error);
     } else {
-      teamsApi.list()
+      teamsApi
+        .list()
         .then(({ data }) => setAllTeams(data))
-        .catch(console.error)
+        .catch(console.error);
     }
   }
 
-  useEffect(() => { loadTeams() }, [id])
+  useEffect(() => {
+    loadTeams();
+  }, [id]);
 
-  const teams = competition ? competition.teams : allTeams
+  function handleUnassignTeam(team: Team) {
+    if (!competition) return;
 
-  const boardId     = selectedTeam?.ecu_serial ? `ECU-${selectedTeam.ecu_serial}` : null
-  const frames      = boardId ? (boardData[boardId] ?? []) : []
-  const latestFrame = frames.at(-1) ?? null
+    competitionsApi
+      .unassignTeam(competition.id, team.id)
+      .then(() => {
+        if (selectedTeam?.id === team.id) {
+          setSelectedTeam(null);
+        }
+        setTeamToUnassign(null);
+        loadTeams(); // refresh UI
+      })
+      .catch(console.error);
+  }
+
+  const teams = competition ? competition.teams : allTeams;
+
+  const boardId = selectedTeam?.ecu_serial
+    ? `ECU-${selectedTeam.ecu_serial}`
+    : null;
+  const frames = boardId ? (boardData[boardId] ?? []) : [];
+  const latestFrame = frames.at(-1) ?? null;
 
   const teamAlerts = useMemo(
-    () => selectedTeam
-      ? alerts.filter((a) => a.ecu_serial === selectedTeam.ecu_serial)
-      : alerts,
+    () =>
+      selectedTeam
+        ? alerts.filter((a) => a.ecu_serial === selectedTeam.ecu_serial)
+        : alerts,
     [alerts, selectedTeam],
-  )
+  );
 
   const activePenalty = useMemo(
     () => teamAlerts.some((a) => a.type === "penalty" && a.ended_at === null),
     [teamAlerts],
-  )
+  );
 
   const filteredFrames = useMemo(() => {
-    if (!dateFrom && !dateTo) return frames
-    const from = dateFrom ? new Date(dateFrom).getTime() : 0
-    const to   = dateTo   ? new Date(dateTo).getTime()   : Infinity
+    if (!dateFrom && !dateTo) return frames;
+    const from = dateFrom ? new Date(dateFrom).getTime() : 0;
+    const to = dateTo ? new Date(dateTo).getTime() : Infinity;
     return frames.filter((f) => {
-      const t = new Date(f.timestamp).getTime()
-      return t >= from && t <= to
-    })
-  }, [frames, dateFrom, dateTo])
+      const t = new Date(f.timestamp).getTime();
+      return t >= from && t <= to;
+    });
+  }, [frames, dateFrom, dateTo]);
 
   return (
     <div className="flex gap-8 min-h-0 h-full">
-
       {/* ── Main content ────────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col gap-6 min-w-0 order-first">
-
         {/* Page header */}
         <div className="flex items-end justify-between">
           <div>
@@ -98,7 +123,9 @@ export default function Dashboard() {
                 {competition ? competition.name : "Dashboard"}
               </h1>
               {competition && (
-                <span className={`text-xs px-2 py-0.5 rounded-full border font-medium capitalize ${EVENT_COLOURS[competition.event_type] ?? ""}`}>
+                <span
+                  className={`text-xs px-2 py-0.5 rounded-full border font-medium capitalize ${EVENT_COLOURS[competition.event_type] ?? ""}`}
+                >
                   {competition.event_type}
                 </span>
               )}
@@ -132,7 +159,10 @@ export default function Dashboard() {
             </div>
             {(dateFrom || dateTo) && (
               <button
-                onClick={() => { setDateFrom(""); setDateTo("") }}
+                onClick={() => {
+                  setDateFrom("");
+                  setDateTo("");
+                }}
                 className="py-1.5 px-3 text-xs text-slate-400 hover:text-white border border-ev-border rounded-lg transition-colors"
               >
                 Clear
@@ -146,14 +176,26 @@ export default function Dashboard() {
           <div className="flex-1 flex flex-col items-center justify-center text-center gap-3 opacity-40 select-none">
             <p className="text-5xl">📡</p>
             <p className="text-slate-700 font-medium">No team selected</p>
-            <p className="text-slate-400 text-sm">Pick a team from the panel on the right</p>
+            <p className="text-slate-400 text-sm">
+              Pick a team from the panel on the right
+            </p>
           </div>
         ) : (
           <>
             {/* Stats */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <StatCard label="Voltage" value={latestFrame?.avg_voltage?.toFixed(2) ?? null} unit="V" accentClass="border-t-ev-cyan" />
-              <StatCard label="Current" value={latestFrame?.avg_current?.toFixed(2) ?? null} unit="A" accentClass="border-t-ev-orange" />
+              <StatCard
+                label="Voltage"
+                value={latestFrame?.avg_voltage?.toFixed(2) ?? null}
+                unit="V"
+                accentClass="border-t-ev-cyan"
+              />
+              <StatCard
+                label="Current"
+                value={latestFrame?.avg_current?.toFixed(2) ?? null}
+                unit="A"
+                accentClass="border-t-ev-orange"
+              />
               <StatCard
                 label="Power"
                 value={latestFrame?.avg_power?.toFixed(1) ?? null}
@@ -161,19 +203,40 @@ export default function Dashboard() {
                 highlight={activePenalty}
                 accentClass="border-t-ev-blue"
               />
-              <StatCard label="Energy" value={latestFrame?.avg_energy?.toFixed(5) ?? null} unit="Wh" accentClass="border-t-green-500" />
+              <StatCard
+                label="Energy"
+                value={latestFrame?.avg_energy?.toFixed(5) ?? null}
+                unit="Wh"
+                accentClass="border-t-green-500"
+              />
             </div>
 
             {/* Graphs */}
             <div className="flex flex-col gap-4">
-              <ChartCard title="Voltage" data={filteredFrames} dataKey="avg_voltage" color="#00a5c8" unit="V" domain={[0, 60]} />
-              <ChartCard title="Current" data={filteredFrames} dataKey="avg_current" color="#ec9c2c" unit="A" domain={[0, 10]} />
+              <ChartCard
+                title="Voltage"
+                data={filteredFrames}
+                dataKey="avg_voltage"
+                color="#00a5c8"
+                unit="V"
+                domain={[0, 60]}
+              />
+              <ChartCard
+                title="Current"
+                data={filteredFrames}
+                dataKey="avg_current"
+                color="#ec9c2c"
+                unit="A"
+                domain={[0, 10]}
+              />
             </div>
 
             {/* Alerts */}
             <div className="bg-ev-panel border border-ev-border rounded-xl p-5 flex flex-col gap-3 shadow-sm">
               <div className="flex items-center justify-between">
-                <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Events</p>
+                <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">
+                  Events
+                </p>
                 {teamAlerts.length > 0 && (
                   <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-500/20 text-red-400">
                     {teamAlerts.length}
@@ -182,7 +245,9 @@ export default function Dashboard() {
               </div>
               <div className="flex flex-col gap-2 overflow-y-auto max-h-56">
                 {teamAlerts.length === 0 ? (
-                  <p className="text-slate-600 text-sm">No power breach events</p>
+                  <p className="text-slate-600 text-sm">
+                    No power breach events
+                  </p>
                 ) : (
                   teamAlerts.map((alert) => (
                     <AlertCard key={alert.id} alert={alert} teams={teams} />
@@ -196,7 +261,9 @@ export default function Dashboard() {
 
       {/* ── Team panel ──────────────────────────────────────────────────── */}
       <aside className="w-48 shrink-0 flex flex-col gap-4 order-last border-l border-ev-cyan/30 pl-6">
-        <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Teams</p>
+        <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">
+          Teams
+        </p>
         <div className="flex flex-col gap-1 overflow-y-auto flex-1">
           <button
             onClick={() => setShowCreateTeam(true)}
@@ -206,7 +273,9 @@ export default function Dashboard() {
           </button>
 
           {teams.length === 0 ? (
-            <p className="text-slate-500 text-xs px-3 pt-1">No teams registered</p>
+            <p className="text-slate-500 text-xs px-3 pt-1">
+              No teams registered
+            </p>
           ) : (
             teams.map((team) => (
               <div
@@ -222,17 +291,32 @@ export default function Dashboard() {
                   onClick={() => setSelectedTeam(team)}
                   className="flex-1 text-left px-3 py-2.5"
                 >
-                  <p className="text-sm font-medium leading-tight text-slate-900">{team.team_name}</p>
+                  <p className="text-sm font-medium leading-tight text-slate-900">
+                    {team.team_name}
+                  </p>
                   <p className="text-xs text-slate-400 mt-0.5">
                     {team.ecu_serial ? `ESP-${team.ecu_serial}` : "No ESP"}
                   </p>
                 </button>
                 <button
-                  onClick={(e) => { e.stopPropagation(); setConfigureTeam(team) }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setConfigureTeam(team);
+                  }}
                   className="pr-2.5 text-slate-300 hover:text-ev-orange transition-colors opacity-0 group-hover:opacity-100"
                   title="Configure ESP"
                 >
                   ⚙
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setTeamToUnassign(team);
+                  }}
+                  className="pr-2.5 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                  title="Unassign team"
+                >
+                  ✕
                 </button>
               </div>
             ))
@@ -245,7 +329,10 @@ export default function Dashboard() {
           teams={teams}
           competitionId={competition?.id}
           onClose={() => setShowCreateTeam(false)}
-          onDone={() => { setShowCreateTeam(false); loadTeams() }}
+          onDone={() => {
+            setShowCreateTeam(false);
+            loadTeams();
+          }}
         />
       )}
 
@@ -254,9 +341,21 @@ export default function Dashboard() {
           team={configureTeam}
           teams={teams}
           onClose={() => setConfigureTeam(null)}
-          onDone={() => { setConfigureTeam(null); loadTeams() }}
+          onDone={() => {
+            setConfigureTeam(null);
+            loadTeams();
+          }}
+        />
+      )}
+
+      {teamToUnassign && competition && (
+        <ConfirmUnassignModal
+          team={teamToUnassign}
+          competition={competition}
+          onCancel={() => setTeamToUnassign(null)}
+          onConfirm={() => handleUnassignTeam(teamToUnassign)}
         />
       )}
     </div>
-  )
+  );
 }
