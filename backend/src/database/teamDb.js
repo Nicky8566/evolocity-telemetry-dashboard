@@ -1,5 +1,14 @@
 import { db, persist } from './db.js';
 
+// Helper function to convert SQL result to array of objects
+function rowsFromResult(result) {
+  if (result.length === 0) return [];
+  const { columns, values } = result[0];
+  return values.map(row =>
+    Object.fromEntries(columns.map((col, i) => [col, row[i]]))
+  );
+}
+
 export function insertTeam(team) {
   db.run(
     `INSERT INTO teams (team_name, team_id, vehicle_class, vehicle_type, ecu_serial, power_limit)
@@ -29,11 +38,7 @@ export function updateTeamPowerLimit(id, power_limit) {
 
 export function getAllTeams() {
   const result = db.exec('SELECT * FROM teams ORDER BY id ASC');
-  if (result.length === 0) return [];
-  const { columns, values } = result[0];
-  return values.map(row =>
-    Object.fromEntries(columns.map((col, i) => [col, row[i]]))
-  );
+  return rowsFromResult(result);
 }
 
 // Fixed SQL injection — now uses ? placeholders
@@ -51,33 +56,39 @@ export function getTeamByEcu(ecu_serial) {
     'SELECT * FROM teams WHERE ecu_serial = ?',
     [ecu_serial]
   );
-  if (result.length === 0) return [];
-  const { columns, values } = result[0];
-  return values.map(row =>
-    Object.fromEntries(columns.map((col, i) => [col, row[i]]))
-  );
+  return rowsFromResult(result);
 }
 
 export function getTeamByName(team_name) {
   const result = db.exec(
-    'SELECT * FROM teams WHERE team_name = ?',
+    'SELECT * FROM teams WHERE LOWER(team_name) = LOWER(?)',
     [team_name]
   );
-  if (result.length === 0) return [];
-  const { columns, values } = result[0];
-  return values.map(row =>
-    Object.fromEntries(columns.map((col, i) => [col, row[i]]))
-  );
+  return rowsFromResult(result);
 }
 
 export function getTeamByTeamId(team_id) {
   const result = db.exec(
-    'SELECT * FROM teams WHERE team_id = ?',
+    'SELECT * FROM teams WHERE LOWER(team_id) = LOWER(?)',
     [team_id]
   );
-  if (result.length === 0) return [];
-  const { columns, values } = result[0];
-  return values.map(row =>
-    Object.fromEntries(columns.map((col, i) => [col, row[i]]))
-  );
+  return rowsFromResult(result);
+}
+
+export function getTeamById(id) {
+  const result = db.exec('SELECT * FROM teams WHERE id = ?', [id]);
+  const rows = rowsFromResult(result);
+  return rows[0] ?? null;
+}
+
+export function deleteTeamById(id) {
+  const existing = getTeamById(id);
+  if (!existing) return false;
+
+  // Delete related entries in competition_teams first to maintain referential integrity
+  db.run('DELETE FROM competition_teams WHERE team_id = ?', [id]);
+  db.run('DELETE FROM teams WHERE id = ?', [id]);
+
+  persist();
+  return true;
 }
