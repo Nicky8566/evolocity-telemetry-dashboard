@@ -13,12 +13,11 @@ const FRAME_DURATION_HOURS = 0.1 / 3600;
 const PENALTY_THRESHOLD_MS = 1000;
 
 function scaleVoltage(millivolts) {
-  return (millivolts / 1000) * 22.3;
+  return (millivolts / 1000);
 }
 
 function scaleCurrent(current) {
-  const millicurrent = current / 1000 
-  return (millicurrent - 1.65) * 0.01037;
+  return (current / 1000);
 }
 
 function getPowerLimit(ecu_serial) {
@@ -33,8 +32,8 @@ export function processECUFrame(payload) {
 
   const scaled_voltage = voltage_samples.map(scaleVoltage);
   const avg_voltage    = scaled_voltage.reduce((s, v) => s + v, 0) / scaled_voltage.length;
-   const scaled_current = current_samples.map(scaleCurrent);
-  const avg_current    = current_samples.reduce((s, v) => s + v, 0) / scaled_current.length;
+  const scaled_current = current_samples.map(scaleCurrent);
+  const avg_current    = scaled_current.reduce((s, v) => s + v, 0) / scaled_current.length;
   const avg_power      = avg_voltage * avg_current;
   const avg_energy     = avg_power * FRAME_DURATION_HOURS; // Wh delta for this frame
 
