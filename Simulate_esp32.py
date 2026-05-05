@@ -5,10 +5,8 @@ Run this while the backend server is running to test the full data pipeline.
 Usage:
     python Simulate_esp32.py
 
-The simulator alternates between three modes:
-  - Normal  : ~100W  (well under the 350W standard class limit)
-  - Warning : ~320W  (just under limit — tests 90% warning threshold)
-  - Penalty : ~420W  (over limit — tests breach detection and escalation)
+The simulator repeats this power pattern:
+  100W -> 400W -> 100W -> 2500W -> 100W
 """
 
 import random
@@ -21,48 +19,36 @@ ECU_SERIAL  = 12345
 INTERVAL    = 0.1    # 10Hz
 NUM_SAMPLES = 10
 
-# Cycle: 50 normal frames → 8 warning frames → 15 penalty frames → repeat
-# 15 penalty frames = 1.5s → triggers escalation to penalty at 1s mark
-CYCLE = [
-    ("normal",  50),
-    ("warning",  8),
-    ("penalty", 15),
-]
+POWER_SEQUENCE_W = [100, 400, 100, 2500, 100]
+FRAMES_PER_POWER = 50
 
 
 def adc_samples(center_mv: float, spread_mv: float) -> list[int]:
-    """Voltage in millivolts — backend scales these to real volts."""
+    """Voltage in millivolts; backend scales these to volts."""
     return [
         max(0, min(3300, int(center_mv + random.uniform(-spread_mv, spread_mv))))
         for _ in range(NUM_SAMPLES)
     ]
 
 
-def current_samples(center_a: float, spread_a: float) -> list[float]:
+def current_samples(center_ma: float) -> list[float]:
     return [
-        round(center_a + random.uniform(-spread_a, spread_a), 3)
+        round(center_ma, 3)
         for _ in range(NUM_SAMPLES)
     ]
 
 
-def frame_for_mode(mode: str) -> dict:
+def frame(target_power_w: float) -> dict:
     """
-    Voltage scaling: V_real = (mv / 1000) * 22.3
-    center_mv=2250 → V_real ≈ 50V
-
-    Target power levels:
-      normal  ~100W  → I ≈ 2A   (50V × 2A)
-      warning ~320W  → I ≈ 6.4A (50V × 6.4A, just under 350W limit)
-      penalty ~420W  → I ≈ 8.4A (50V × 8.4A, over 350W limit)
+    Backend scaling:
+      voltage = millivolts / 1000
+      current = milliamps / 1000
+      power = avg_voltage * avg_current
     """
     v_samples = adc_samples(center_mv=2250, spread_mv=30)
-
-    if mode == "normal":
-        i_samples = current_samples(center_a=2.0, spread_a=0.3)
-    elif mode == "warning":
-        i_samples = current_samples(center_a=6.4, spread_a=0.2)
-    else:  # penalty
-        i_samples = current_samples(center_a=8.4, spread_a=0.3)
+    avg_voltage = sum(v_samples) / len(v_samples) / 1000
+    target_current_ma = (target_power_w / avg_voltage) * 1000
+    i_samples = current_samples(target_current_ma)
 
     return {
         "ecu_serial":      ECU_SERIAL,
@@ -72,19 +58,19 @@ def frame_for_mode(mode: str) -> dict:
     }
 
 
-def send_frame(mode: str):
-    payload = frame_for_mode(mode)
+def send_frame(target_power_w: float):
+    payload = frame(target_power_w)
     try:
         resp  = requests.post(BACKEND_URL, json=payload, timeout=2)
-        frame = resp.json().get("frame", {})
-        v     = frame.get("avg_voltage", 0)
-        i     = frame.get("avg_current", 0)
-        p     = frame.get("avg_power",   0)
-        e     = frame.get("avg_energy",  0)
+        response_frame = resp.json().get("frame", {})
+        v     = response_frame.get("avg_voltage", 0)
+        i     = response_frame.get("avg_current", 0)
+        p     = response_frame.get("avg_power",   0)
+        e     = response_frame.get("avg_energy",  0)
         print(
-            f"[{mode:<7}] "
+            f"target={target_power_w:6.1f}W  "
             f"V={v:5.1f}V  "
-            f"I={i:4.2f}A  "
+            f"I={i:7.2f}A  "
             f"P={p:6.1f}W  "
             f"E={e:.5f}Wh  "
             f"status={resp.status_code}"
@@ -94,12 +80,12 @@ def send_frame(mode: str):
 
 
 if __name__ == "__main__":
-    print(f"Simulating ESP32  serial={ECU_SERIAL}  →  {BACKEND_URL}")
-    print("Cycle: 50 normal → 8 warning → 15 penalty → repeat")
+    print(f"Simulating ESP32  serial={ECU_SERIAL}  ->  {BACKEND_URL}")
+    print(f"Power sequence: {'W -> '.join(str(power) for power in POWER_SEQUENCE_W)}W")
     print("Press Ctrl+C to stop\n")
 
     while True:
-        for mode, count in CYCLE:
-            for _ in range(count):
-                send_frame(mode)
+        for target_power_w in POWER_SEQUENCE_W:
+            for _ in range(FRAMES_PER_POWER):
+                send_frame(target_power_w)
                 time.sleep(INTERVAL)
