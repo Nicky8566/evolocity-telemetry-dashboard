@@ -1,4 +1,4 @@
-import { insertTeam, getAllTeams, updateTeamEcu, getTeamByEcu, getTeamByName, getTeamByTeamId, updateTeamPowerLimit as dbUpdateTeamPowerLimit } from '../database/teamDb.js';
+import { insertTeam, getAllTeams, updateTeamEcu, getTeamByEcu, getTeamByName, getTeamByTeamId, getTeamById, deleteTeamById, updateTeamPowerLimit as dbUpdateTeamPowerLimit } from '../database/teamDb.js';
 
 export function saveTeam(payload) {
   const { name, team_id, vehicle_class, vehicle_type, ecu_serial, power_limit } = payload;
@@ -38,4 +38,12 @@ export function getTeamByTeamName(team_name) {
 
 export function getTeamByTeamID(team_id) {
   return getTeamByTeamId(team_id);
+}
+
+export function getTeam(id) {
+  return getTeamById(id);
+}
+
+export function deleteTeam(id) {
+  deleteTeamById(id);
 }

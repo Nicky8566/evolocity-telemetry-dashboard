@@ -1,4 +1,4 @@
-import { getTeams, saveTeam, getTeamByEcuSerial, updateTeamEcuSerial, getTeamByTeamName, getTeamByTeamID, updateTeamPowerLimit as setPowerLimit } from '../services/teamService.js';
+import { getTeams, saveTeam, getTeam, deleteTeam, getTeamByEcuSerial, updateTeamEcuSerial, getTeamByTeamName, getTeamByTeamID, updateTeamPowerLimit as setPowerLimit } from '../services/teamService.js';
 import { broadcast } from '../../websocket.js';
 
 export function getAllTeams(req, res) {
@@ -78,4 +78,20 @@ export function updateTeamPowerLimit(req, res) {
     message: 'Updated team power limit',
     data: { id, power_limit: nextPowerLimit }
   });
+}
+
+export function deleteTeamInfo(req, res) {
+  const id = parseInt(req.params.id);
+  if (Number.isNaN(id)) {
+    return res.status(400).json({ error: 'Invalid team id' });
+  }
+
+  const team = getTeam(id);
+  if (!team) {
+    return res.status(404).json({ error: 'Team not found' });
+  }
+
+  deleteTeam(id);
+  broadcast({ type: 'team-deleted', data: team });
+  res.json({ message: 'Team deleted' });
 }

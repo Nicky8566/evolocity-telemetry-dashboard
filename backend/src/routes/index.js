@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { getCounterHistory, resetCounter } from '../controllers/counterController.js';
 import { receiveECUData, getECUData, getECUSerials } from '../controllers/ecuController.js';
-import { getAllTeams, saveTeamInfo, getTeamByEcu, updateTeamEcu, getTeamByName, getTeamByTeamId, updateTeamPowerLimit } from '../controllers/teamController.js';
+import { getAllTeams, saveTeamInfo, deleteTeamInfo, getTeamByEcu, updateTeamEcu, getTeamByName, getTeamByTeamId, updateTeamPowerLimit } from '../controllers/teamController.js';
 import { getAllCompetitions, createNewCompetition, getCompetitionDetails, assignTeam, unassignTeam } from '../controllers/competitionController.js';
 import { getAlertsHandler } from '../controllers/alertController.js';
 
@@ -27,6 +27,7 @@ router.get('/teams/ecus/:ecu_serial', getTeamByEcu);
 router.get('/teams/names/:team_name', getTeamByName);
 router.get('/teams/team_ids/:team_id', getTeamByTeamId);
 router.post('/teams/create', saveTeamInfo);
+router.delete('/teams/:id', deleteTeamInfo);
 router.post('/teams/update/ecu', updateTeamEcu);
 router.post('/teams/update/power_limit', updateTeamPowerLimit);
 

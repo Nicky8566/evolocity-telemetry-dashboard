@@ -1,0 +1,377 @@
+import { useEffect, useMemo, useState } from "react";
+import { competitionsApi } from "../api/competitions";
+import { teamsApi } from "../api/teams";
+import ConfigureTeamModal from "../components/ui/ConfigureTeamModal";
+import ConfirmUnassignModal from "../components/ui/ConfirmUnassignModal";
+import CreateTeamModal from "../components/ui/CreateTeamModal";
+import DeleteTeamModal from "../components/ui/DeleteTeamModal";
+import type { Competition, CompetitionDetail, Team } from "../types";
+
+const EVENT_LABELS: Record<string, string> = {
+  drag: "Drag Race",
+  gymkhana: "Gymkhana",
+  endurance: "Endurance",
+};
+
+export default function Teams() {
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [competitions, setCompetitions] = useState<CompetitionDetail[]>([]);
+  const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [configureTeam, setConfigureTeam] = useState<Team | null>(null);
+  const [teamToDelete, setTeamToDelete] = useState<Team | null>(null);
+  const [unassignTarget, setUnassignTarget] = useState<{
+    team: Team;
+    competition: CompetitionDetail;
+  } | null>(null);
+  const [assignCompetitionId, setAssignCompetitionId] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function loadData() {
+    try {
+      const [{ data: teamRows }, { data: competitionRows }] = await Promise.all(
+        [teamsApi.list(), competitionsApi.list()],
+      );
+
+      const details = await Promise.all(
+        competitionRows.map((competition: Competition) =>
+          competitionsApi.getById(competition.id).then(({ data }) => data),
+        ),
+      );
+
+      setTeams(teamRows);
+      setCompetitions(details);
+      setSelectedTeam((current) => {
+        if (!current) return teamRows[0] ?? null;
+        return (
+          teamRows.find((team) => team.id === current.id) ?? teamRows[0] ?? null
+        );
+      });
+    } catch (err) {
+      console.error(err);
+      setError("Failed to load teams");
+    }
+  }
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const selectedCompetitionMemberships = useMemo(
+    () =>
+      selectedTeam
+        ? competitions.filter((competition) =>
+            competition.teams.some((team) => team.id === selectedTeam.id),
+          )
+        : [],
+    [competitions, selectedTeam],
+  );
+
+  const assignableCompetitions = useMemo(
+    () =>
+      selectedTeam
+        ? competitions.filter(
+            (competition) =>
+              !competition.teams.some((team) => team.id === selectedTeam.id),
+          )
+        : [],
+    [competitions, selectedTeam],
+  );
+
+  async function handleAssignCompetition() {
+    if (!selectedTeam || !assignCompetitionId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await competitionsApi.assignTeam(
+        parseInt(assignCompetitionId),
+        selectedTeam.id,
+      );
+      setAssignCompetitionId("");
+      await loadData();
+    } catch {
+      setError("Failed to assign team to competition");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleUnassignTeam(
+    team: Team,
+    competition: CompetitionDetail,
+  ) {
+    setBusy(true);
+    setError(null);
+    try {
+      await competitionsApi.unassignTeam(competition.id, team.id);
+      setUnassignTarget(null);
+      await loadData();
+    } catch {
+      setError("Failed to unassign team");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDeleteTeam() {
+    if (!teamToDelete) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await teamsApi.delete(teamToDelete.id);
+      if (selectedTeam?.id === teamToDelete.id) {
+        setSelectedTeam(null);
+      }
+      setTeamToDelete(null);
+      await loadData();
+    } catch {
+      setError("Failed to delete team");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex gap-8 min-h-0 h-full">
+      <div className="flex-1 flex flex-col gap-6 min-w-0 order-first">
+        <div className="flex items-end justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">
+              {selectedTeam ? selectedTeam.team_name : "Teams"}
+            </h1>
+            <p className="text-slate-400 text-sm mt-0.5">
+              {selectedTeam
+                ? `${selectedTeam.team_id} · ${selectedTeam.vehicle_class} ${selectedTeam.vehicle_type} · ${selectedCompetitionMemberships.length} competition${selectedCompetitionMemberships.length === 1 ? "" : "s"}`
+                : "Create and manage teams independently of competitions"}
+            </p>
+          </div>
+
+          {selectedTeam && (
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfigureTeam(selectedTeam)}
+                className="px-4 py-2 text-sm text-ev-cyan border border-ev-cyan/40 rounded-lg hover:bg-ev-cyan/5 transition-colors"
+              >
+                Configure ESP
+              </button>
+              <button
+                onClick={() => setTeamToDelete(selectedTeam)}
+                className="px-4 py-2 text-sm text-red-500 border border-red-500/30 rounded-lg hover:bg-red-500/5 transition-colors"
+              >
+                Delete Team
+              </button>
+            </div>
+          )}
+        </div>
+
+        {error && (
+          <p className="rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-2 text-sm text-red-500">
+            {error}
+          </p>
+        )}
+
+        {!selectedTeam ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-center gap-3 opacity-40 select-none">
+            <p className="text-5xl">👥</p>
+            <p className="text-slate-700 font-medium">No team selected</p>
+            <p className="text-slate-400 text-sm">
+              Choose a team or create one from the panel
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr] gap-4">
+            <section className="bg-ev-panel border border-ev-border rounded-xl p-5 flex flex-col gap-4 shadow-sm">
+              <div>
+                <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold mb-1">
+                  Team Details
+                </p>
+                <p className="text-lg font-semibold text-slate-900">
+                  {selectedTeam.team_name}
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <Info label="Team ID" value={selectedTeam.team_id} />
+                <Info
+                  label="ESP"
+                  value={
+                    selectedTeam.ecu_serial
+                      ? `ESP-${selectedTeam.ecu_serial}`
+                      : "Unassigned"
+                  }
+                />
+                <Info label="Class" value={selectedTeam.vehicle_class} />
+                <Info label="Vehicle" value={selectedTeam.vehicle_type} />
+              </div>
+            </section>
+
+            <section className="bg-ev-panel border border-ev-border rounded-xl p-5 flex flex-col gap-4 shadow-sm">
+              <div>
+                <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold mb-1">
+                  Competition Assignments
+                </p>
+                <p className="text-sm text-slate-400">
+                  Assign or unassign this team without recreating it.
+                </p>
+              </div>
+
+              <div className="flex gap-2">
+                <select
+                  value={assignCompetitionId}
+                  onChange={(e) => setAssignCompetitionId(e.target.value)}
+                  className="min-w-0 flex-1 border border-ev-border rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-ev-cyan"
+                >
+                  <option value="">Choose competition…</option>
+                  {assignableCompetitions.map((competition) => (
+                    <option key={competition.id} value={String(competition.id)}>
+                      {competition.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleAssignCompetition}
+                  disabled={!assignCompetitionId || busy}
+                  className="px-4 py-2 text-sm text-white bg-ev-cyan rounded-lg hover:bg-ev-blue transition-colors disabled:opacity-50"
+                >
+                  Assign
+                </button>
+              </div>
+
+              {competitions.length === 0 ? (
+                <p className="text-sm text-slate-400">
+                  No competitions exist yet.
+                </p>
+              ) : selectedCompetitionMemberships.length === 0 ? (
+                <p className="text-sm text-slate-400">
+                  This team is not assigned to any competitions.
+                </p>
+              ) : (
+                <div className="divide-y divide-ev-border rounded-lg border border-ev-border overflow-hidden">
+                  {selectedCompetitionMemberships.map((competition) => (
+                    <div
+                      key={competition.id}
+                      className="flex items-center justify-between gap-3 px-3 py-2.5"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-slate-900 truncate">
+                          {competition.name}
+                        </p>
+                        <p className="text-xs text-slate-400">
+                          {EVENT_LABELS[competition.event_type] ??
+                            competition.event_type}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() =>
+                          setUnassignTarget({ team: selectedTeam, competition })
+                        }
+                        className="text-xs text-red-500 hover:text-red-600 transition-colors"
+                      >
+                        Unassign
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+      </div>
+
+      <aside className="w-48 shrink-0 flex flex-col gap-4 order-last border-l border-ev-cyan/30 pl-6">
+        <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">
+          Teams
+        </p>
+        <div className="flex flex-col gap-1 overflow-y-auto flex-1">
+          <button
+            onClick={() => setShowCreate(true)}
+            className="text-left px-3 py-2.5 rounded-lg border border-dashed border-ev-cyan/40 text-ev-cyan text-sm hover:bg-ev-cyan/5 transition-colors"
+          >
+            + New Team
+          </button>
+
+          {teams.length === 0 ? (
+            <p className="text-slate-500 text-xs px-3 pt-1">
+              No teams registered
+            </p>
+          ) : (
+            teams.map((team) => (
+              <button
+                key={team.id}
+                onClick={() => setSelectedTeam(team)}
+                className={[
+                  "text-left px-3 py-2.5 rounded-lg border transition-colors",
+                  selectedTeam?.id === team.id
+                    ? "bg-ev-orange/10 border-ev-orange/40"
+                    : "border-transparent hover:bg-slate-100",
+                ].join(" ")}
+              >
+                <p className="text-sm font-medium leading-tight text-slate-900">
+                  {team.team_name}
+                </p>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {team.ecu_serial ? `ESP-${team.ecu_serial}` : "No ESP"}
+                </p>
+              </button>
+            ))
+          )}
+        </div>
+      </aside>
+
+      {showCreate && (
+        <CreateTeamModal
+          teams={teams}
+          onClose={() => setShowCreate(false)}
+          onDone={() => {
+            setShowCreate(false);
+            loadData();
+          }}
+        />
+      )}
+
+      {configureTeam && (
+        <ConfigureTeamModal
+          team={configureTeam}
+          teams={teams}
+          onClose={() => setConfigureTeam(null)}
+          onDone={() => {
+            setConfigureTeam(null);
+            loadData();
+          }}
+        />
+      )}
+
+      {unassignTarget && (
+        <ConfirmUnassignModal
+          team={unassignTarget.team}
+          competition={unassignTarget.competition}
+          onCancel={() => setUnassignTarget(null)}
+          onConfirm={() =>
+            handleUnassignTeam(unassignTarget.team, unassignTarget.competition)
+          }
+        />
+      )}
+
+      {teamToDelete && (
+        <DeleteTeamModal
+          team={teamToDelete}
+          memberships={competitions.filter((competition) =>
+            competition.teams.some((team) => team.id === teamToDelete.id),
+          )}
+          busy={busy}
+          onCancel={() => setTeamToDelete(null)}
+          onConfirm={handleDeleteTeam}
+        />
+      )}
+    </div>
+  );
+}
+
+function Info({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg bg-slate-50 border border-ev-border px-3 py-2">
+      <p className="text-xs text-slate-400 mb-0.5">{label}</p>
+      <p className="text-sm font-medium text-slate-900 capitalize">{value}</p>
+    </div>
+  );
+}

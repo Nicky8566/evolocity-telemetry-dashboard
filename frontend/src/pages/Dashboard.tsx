@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { competitionsApi } from "../api/competitions";
 import { teamsApi } from "../api/teams";
@@ -34,6 +34,7 @@ export default function Dashboard() {
     null,
   );
   const [allTeams, setAllTeams] = useState<Team[]>([]);
+  const [registeredTeams, setRegisteredTeams] = useState<Team[]>([]);
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [showCreateTeam, setShowCreateTeam] = useState(false);
   const [teamToUnassign, setTeamToUnassign] = useState<Team | null>(null);
@@ -45,13 +46,13 @@ export default function Dashboard() {
   const [powerLimitStatus, setPowerLimitStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   // When opened from a competition, load that competition's team list
-  function loadTeams() {
+  const loadTeams = useCallback(() => {
     if (id) {
-      competitionsApi
-        .getById(parseInt(id))
-        .then(({ data }) => {
+      Promise.all([competitionsApi.getById(parseInt(id)), teamsApi.list()])
+        .then(([{ data }, { data: teamRows }]) => {
           setCompetition(data);
           setAllTeams(data.teams);
+          setRegisteredTeams(teamRows);
           if (data.teams.length > 0 && !selectedTeam)
             setSelectedTeam(data.teams[0]);
         })
@@ -59,14 +60,17 @@ export default function Dashboard() {
     } else {
       teamsApi
         .list()
-        .then(({ data }) => setAllTeams(data))
+        .then(({ data }) => {
+          setAllTeams(data);
+          setRegisteredTeams(data);
+        })
         .catch(console.error);
     }
-  }
+  }, [id, selectedTeam]);
 
   useEffect(() => {
     loadTeams();
-  }, [id]);
+  }, [loadTeams]);
 
   useEffect(() => {
     if (!selectedTeam) return;
@@ -135,7 +139,10 @@ export default function Dashboard() {
   const boardId = selectedTeam?.ecu_serial
     ? `ECU-${selectedTeam.ecu_serial}`
     : null;
-  const frames = boardId ? (boardData[boardId] ?? []) : [];
+  const frames = useMemo(
+    () => (boardId ? (boardData[boardId] ?? []) : []),
+    [boardData, boardId],
+  );
   const latestFrame = frames.at(-1) ?? null;
 
   const teamAlerts = useMemo(
@@ -388,7 +395,7 @@ export default function Dashboard() {
             onClick={() => setShowCreateTeam(true)}
             className="text-left px-3 py-2.5 rounded-lg border border-dashed border-ev-cyan/40 text-ev-cyan text-sm hover:bg-ev-cyan/5 transition-colors"
           >
-            + New Team
+            + Add Team
           </button>
 
           {teams.length === 0 ? (
@@ -458,7 +465,7 @@ export default function Dashboard() {
       {configureTeam && (
         <ConfigureTeamModal
           team={configureTeam}
-          teams={teams}
+          teams={registeredTeams.length > 0 ? registeredTeams : teams}
           onClose={() => setConfigureTeam(null)}
           onDone={() => {
             setConfigureTeam(null);
