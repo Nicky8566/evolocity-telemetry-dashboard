@@ -14,6 +14,7 @@ export interface Team {
   vehicle_class: string
   vehicle_type:  string
   ecu_serial:    number | null
+  power_limit:   number | null
 }
 
 export interface Competition {

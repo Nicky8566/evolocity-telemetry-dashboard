@@ -69,8 +69,15 @@ export function updateTeamPowerLimit(req, res) {
   if (id == null) {
     return res.status(400).json({ error: 'Missing required field: id' });
   }
-  setPowerLimit(id, power_limit ?? null);
-  res.json({ message: 'Updated team power limit' });
+  const nextPowerLimit = Number(power_limit);
+  if (!Number.isFinite(nextPowerLimit) || nextPowerLimit < 0 || nextPowerLimit > 2500) {
+    return res.status(400).json({ error: 'power_limit must be a number from 0 to 2500' });
+  }
+  setPowerLimit(id, nextPowerLimit);
+  res.json({
+    message: 'Updated team power limit',
+    data: { id, power_limit: nextPowerLimit }
+  });
 }
 
 export function deleteTeamInfo(req, res) {

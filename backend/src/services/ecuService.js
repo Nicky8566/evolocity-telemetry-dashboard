@@ -38,7 +38,7 @@ export function processECUFrame(payload) {
   const avg_energy     = avg_power * FRAME_DURATION_HOURS; // Wh delta for this frame
 
   const powerLimit   = getPowerLimit(ecu_serial);
-  const overLimit    = avg_power > powerLimit;
+  const overLimit    = avg_power >= powerLimit;
   const wasBreaching = activeBreaches.has(ecu_serial);
 
   if (overLimit && !wasBreaching) {

@@ -17,6 +17,14 @@ const EVENT_COLOURS: Record<string, string> = {
   endurance: "bg-ev-orange/10 text-ev-orange border-ev-orange/30",
 };
 
+const POWER_LIMIT_MIN = 0;
+const POWER_LIMIT_MAX = 2500;
+const POWER_LIMIT_PRESETS = [350, 2000];
+
+function defaultPowerLimit(team: Team) {
+  return team.power_limit ?? (team.vehicle_class.toLowerCase() === "standard" ? 350 : 2000);
+}
+
 export default function Dashboard() {
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
@@ -33,6 +41,9 @@ export default function Dashboard() {
   const [configureTeam, setConfigureTeam] = useState<Team | null>(null);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [powerLimitDraft, setPowerLimitDraft] = useState(2000);
+  const [dirtyPowerTeamId, setDirtyPowerTeamId] = useState<number | null>(null);
+  const [powerLimitStatus, setPowerLimitStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   // When opened from a competition, load that competition's team list
   const loadTeams = useCallback(() => {
@@ -61,6 +72,33 @@ export default function Dashboard() {
     loadTeams();
   }, [loadTeams]);
 
+  useEffect(() => {
+    if (!selectedTeam) return;
+    setPowerLimitDraft(defaultPowerLimit(selectedTeam));
+    setDirtyPowerTeamId(null);
+    setPowerLimitStatus("idle");
+  }, [selectedTeam?.id]);
+
+  useEffect(() => {
+    if (!selectedTeam || dirtyPowerTeamId !== selectedTeam.id) return;
+
+    setPowerLimitStatus("saving");
+    const timeoutId = window.setTimeout(() => {
+      teamsApi
+        .updatePowerLimit(selectedTeam.id, powerLimitDraft)
+        .then(() => {
+          updateTeamPowerLimitInState(selectedTeam.id, powerLimitDraft);
+          setPowerLimitStatus("saved");
+        })
+        .catch((err) => {
+          console.error("Failed to update power limit:", err);
+          setPowerLimitStatus("error");
+        });
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [dirtyPowerTeamId, powerLimitDraft, selectedTeam?.id]);
+
   function handleUnassignTeam(team: Team) {
     if (!competition) return;
 
@@ -74,6 +112,26 @@ export default function Dashboard() {
         loadTeams(); // refresh UI
       })
       .catch(console.error);
+  }
+
+  function updateTeamPowerLimitInState(teamId: number, powerLimit: number) {
+    const updateTeam = (team: Team) =>
+      team.id === teamId ? { ...team, power_limit: powerLimit } : team;
+
+    setAllTeams((prev) => prev.map(updateTeam));
+    setCompetition((prev) =>
+      prev ? { ...prev, teams: prev.teams.map(updateTeam) } : prev,
+    );
+    setSelectedTeam((prev) => (prev?.id === teamId ? updateTeam(prev) : prev));
+  }
+
+  function setPowerLimit(powerLimit: number) {
+    const clampedPowerLimit = Math.max(
+      POWER_LIMIT_MIN,
+      Math.min(POWER_LIMIT_MAX, Math.round(powerLimit)),
+    );
+    setPowerLimitDraft(clampedPowerLimit);
+    setDirtyPowerTeamId(selectedTeam?.id ?? null);
   }
 
   const teams = competition ? competition.teams : allTeams;
@@ -216,6 +274,67 @@ export default function Dashboard() {
                 unit="Wh"
                 accentClass="border-t-green-500"
               />
+            </div>
+
+            {/* Power limit */}
+            <div className="bg-ev-panel border border-ev-border rounded-xl p-5 flex flex-col gap-4 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">
+                    Power Limit
+                  </p>
+                  <p className="text-sm text-slate-500 mt-1">
+                    Alerts trigger when live power exceeds this team's limit.
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-2xl font-bold text-slate-900 tabular-nums">
+                    {powerLimitDraft}W
+                  </p>
+                  <p
+                    className={[
+                      "text-xs",
+                      powerLimitStatus === "error"
+                        ? "text-red-500"
+                        : powerLimitStatus === "saving"
+                          ? "text-slate-400"
+                          : "text-slate-500",
+                    ].join(" ")}
+                  >
+                    {powerLimitStatus === "saving"
+                      ? "Saving..."
+                      : powerLimitStatus === "error"
+                        ? "Save failed"
+                        : "Applied to alert threshold"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-col gap-3">
+                <input
+                  type="range"
+                  min={POWER_LIMIT_MIN}
+                  max={POWER_LIMIT_MAX}
+                  step={10}
+                  value={powerLimitDraft}
+                  onChange={(e) => setPowerLimit(Number(e.target.value))}
+                  className="w-full accent-ev-orange"
+                />
+                <div className="flex items-center justify-between text-xs text-slate-400">
+                  <span>{POWER_LIMIT_MIN}W</span>
+                  <span>{POWER_LIMIT_MAX}W</span>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                {POWER_LIMIT_PRESETS.map((preset) => (
+                  <button
+                    key={preset}
+                    onClick={() => setPowerLimit(preset)}
+                    className="px-3 py-2 rounded-lg border border-ev-border text-sm font-semibold text-slate-700 hover:border-ev-orange/50 hover:text-ev-orange transition-colors"
+                  >
+                    {preset}W
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Graphs */}
