@@ -21,17 +21,24 @@ export function insertECUFrame(frame) {
   persist();
 }
 
-export function getAllECUFrames(limit = 1000) {
+export function getAllECUFrames({ ecu_serial, from, limit } = {}) {
+  const conditions = [];
+  const params     = [];
+
+  if (ecu_serial != null) { conditions.push('ecu_serial = ?'); params.push(ecu_serial); }
+  if (from)               { conditions.push('recorded_at >= ?'); params.push(from); }
+
+  const where    = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  const limitSql = limit != null ? `LIMIT ${parseInt(limit)}` : '';
+
   const result = db.exec(
     `SELECT ecu_serial, timestamp, avg_voltage, avg_current, avg_power, avg_energy
-     FROM ecu_data ORDER BY id DESC LIMIT ?`,
-    [limit]
+     FROM ecu_data ${where} ORDER BY id ASC ${limitSql}`,
+    params
   );
   if (result.length === 0) return [];
   const { columns, values } = result[0];
-  return values
-    .map(row => Object.fromEntries(columns.map((col, i) => [col, row[i]])))
-    .reverse(); // oldest first
+  return values.map(row => Object.fromEntries(columns.map((col, i) => [col, row[i]])));
 }
 
 export function getUniqueECUSerials() {

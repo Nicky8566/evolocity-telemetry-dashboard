@@ -55,6 +55,7 @@ export async function initDb() {
   try { db.run('ALTER TABLE ecu_data ADD COLUMN power_samples TEXT'); } catch (_) {}
   try { db.run("ALTER TABLE alerts ADD COLUMN type TEXT DEFAULT 'penalty'"); } catch (_) {}
   try { db.run("ALTER TABLE competitions ADD COLUMN event_type TEXT DEFAULT 'drag'"); } catch (_) {}
+  try { db.run('ALTER TABLE competition_teams ADD COLUMN joined_at TEXT'); } catch (_) {}
 
   persist();
   console.log('SQLite ready.');

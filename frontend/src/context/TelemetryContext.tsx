@@ -24,10 +24,11 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
   const [alerts, setAlerts]       = useState<Alert[]>([])
   const zeroTimeoutsRef           = useRef<Record<string, number>>({})
 
-  // Pre-populate charts with stored history on first load
+  // Pre-populate charts with the last 5 minutes of stored data on first load
   useEffect(() => {
+    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
     ecuApi
-      .history()
+      .history({ from: fiveMinAgo })
       .then(({ data: rows }) => {
         if (rows.length === 0) return
         const grouped: BoardData = {}
@@ -60,7 +61,10 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
         window.clearTimeout(zeroTimeoutsRef.current[boardId])
 
         setBoardData((prev) => {
-          const updated = [...(prev[boardId] ?? []), frame].slice(-200)
+          const cutoff = Date.now() - 5 * 60 * 1000
+          const updated = [...(prev[boardId] ?? []), frame].filter(
+            (f) => new Date(f.timestamp).getTime() >= cutoff
+          )
           return { ...prev, [boardId]: updated }
         })
 
@@ -79,7 +83,8 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
               avg_power:   null,
               avg_energy:  null,
             }
-            return { ...prev, [boardId]: [...existing, zeroFrame].slice(-200) }
+            const cutoff = Date.now() - 5 * 60 * 1000
+            return { ...prev, [boardId]: [...existing, zeroFrame].filter((f) => new Date(f.timestamp).getTime() >= cutoff) }
           })
         }, 3000)
       } catch {

@@ -14,3 +14,8 @@
     @apply bg-ev-bg text-slate-900;
   }
 }
+
+/* Recharts brush — black handles and black time labels */
+.recharts-brush-traveller rect  { fill: #000 !important; stroke: #000 !important; }
+.recharts-brush-traveller line  { stroke: #000 !important; }
+.recharts-brush-texts text      { fill: #000 !important; font-size: 11px; }

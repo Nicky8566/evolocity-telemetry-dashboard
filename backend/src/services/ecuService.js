@@ -89,8 +89,8 @@ export function processECUFrame(payload) {
   return { ecu_serial, timestamp, avg_voltage, avg_current, avg_power, avg_energy };
 }
 
-export function getECUHistory(limit = 1000) {
-  return getAllECUFrames(limit);
+export function getECUHistory({ ecu_serial, from, limit } = {}) {
+  return getAllECUFrames({ ecu_serial, from, limit });
 }
 
 export function getECUSerials() {
