@@ -4,6 +4,7 @@ import { getCompetitionById } from '../database/competitionDb.js';
 import { db } from '../database/db.js';
 import { EVENT_TYPES } from '../models/competitionModel.js';
 import { RUN_OUTCOMES as VALID_OUTCOMES } from '../models/runModel.js';
+import { broadcastAlert } from '../../websocket.js';
 
 function competitionHasEvent(competition_id, event_type) {
   const result = db.exec(
@@ -38,7 +39,9 @@ export function startRun({ team_id, competition_id, event_type }) {
   const attempt_number = nextAttemptNumber(team_id, competition_id, event_type);
   const started_at = new Date().toISOString();
   const id = insertRun({ team_id, competition_id, event_type, attempt_number, started_at });
-  return getRunById(id);
+  const run = getRunById(id);
+  broadcastAlert({ type: 'run', data: run });
+  return run;
 }
 
 function computeEfficiencyEnergy(team_id, started_at, ended_at) {
@@ -79,7 +82,11 @@ export function stopRun(id, { outcome = 'finished' } = {}) {
   }
 
   finaliseRun(id, { ended_at, outcome, raw_metric, raw_metric_unit });
-  return getRunById(id);
+  const finalRun = getRunById(id);
+  broadcastAlert({ type: 'run', data: finalRun });
+  // Nudge any leaderboard listeners — full results are fetched via HTTP.
+  broadcastAlert({ type: 'leaderboard', data: { competition_id: finalRun.competition_id } });
+  return finalRun;
 }
 
 export function getRuns(params) {
