@@ -11,6 +11,7 @@ import StatCard from "../components/ui/StatCard";
 import { useTelemetry } from "../context/TelemetryContext";
 import type { CompetitionDetail, ECUFrame, Team } from "../types";
 import ConfirmUnassignModal from "../components/ui/ConfirmUnassignModal";
+import ExportMenu from "../components/ui/ExportMenu";
 
 const EVENT_COLOURS: Record<string, string> = {
   drag:      "bg-ev-cyan/10 text-ev-cyan border-ev-cyan/30",
@@ -257,7 +258,14 @@ export default function Dashboard() {
                   </button>
                 </div>
 
-                {/* Date range filter — live tab only */}
+                {/* Controls — right side of tab bar */}
+                {tab === "history" && selectedTeam && (
+                  <ExportMenu
+                    frames={historyFrames}
+                    team={selectedTeam}
+                    competition={competition}
+                  />
+                )}
                 {tab === "live" && (
                   <div className="flex items-end gap-2">
                     <div className="flex flex-col gap-1">
