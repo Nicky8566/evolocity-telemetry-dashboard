@@ -47,6 +47,7 @@ export default function Dashboard() {
   const [tab, setTab]                   = useState<"live" | "history">("live");
   const [historyFrames, setHistoryFrames] = useState<ECUFrame[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError]     = useState(false);
   const [dateFrom, setDateFrom]         = useState("");
   const [dateTo, setDateTo]             = useState("");
 
@@ -74,6 +75,7 @@ export default function Dashboard() {
     setPowerLimitStatus("idle");
     setTab("live");
     setHistoryFrames([]);
+    setHistoryError(false);
     setDateFrom("");
     setDateTo("");
   }, [selectedTeam?.id]);
@@ -82,13 +84,14 @@ export default function Dashboard() {
   useEffect(() => {
     if (tab !== "history" || !selectedTeam?.ecu_serial) return;
     setHistoryLoading(true);
+    setHistoryError(false);
     ecuApi
       .history({
         ecu_serial: selectedTeam.ecu_serial,
         from: selectedTeam.joined_at ?? competition?.created_at,
       })
       .then(({ data }) => setHistoryFrames(data))
-      .catch(console.error)
+      .catch(() => setHistoryError(true))
       .finally(() => setHistoryLoading(false));
   }, [tab, selectedTeam?.id, competition?.id]);
 
@@ -306,6 +309,8 @@ export default function Dashboard() {
 
                 {tab === "history" && historyLoading ? (
                   <div className="flex items-center justify-center h-48 text-slate-400 text-sm">Loading history...</div>
+                ) : tab === "history" && historyError ? (
+                  <div className="flex items-center justify-center h-48 text-red-400 text-sm">Failed to load history — check your connection and try again.</div>
                 ) : displayFrames.length === 0 ? (
                   <div className="flex items-center justify-center h-48 text-slate-400 text-sm opacity-40">
                     {tab === "live" ? "Waiting for live data..." : "No data for this team in this competition yet"}
