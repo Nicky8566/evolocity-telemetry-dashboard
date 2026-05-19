@@ -84,7 +84,7 @@ export default function PenaltyList({ penalties, onChange }: Props) {
                   step={0.1}
                   value={editValue}
                   onChange={(e) => setEditValue(e.target.value)}
-                  className="w-20 border border-ev-cyan rounded px-2 py-1 text-sm tabular-nums focus:outline-none"
+                  className="w-20 border border-ev-cyan rounded px-2 py-1 text-sm tabular-nums text-slate-900 focus:outline-none"
                   autoFocus
                 />
               ) : (

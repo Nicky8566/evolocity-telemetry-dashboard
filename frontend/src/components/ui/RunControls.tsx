@@ -64,16 +64,27 @@ export default function RunControls({ team, competition, onRunsChanged }: Props)
   const latestRun    = activeRun ?? runsForEvent.at(-1) ?? null
   const nextAttempt  = (runsForEvent.at(-1)?.attempt_number ?? 0) + 1
 
-  // Penalties shown for whichever run is "current" (active, else the last attempt).
+  // Which attempt the Penalties section operates on. Defaults to the latest run,
+  // but the user can click any attempt in the list to switch.
+  const [selectedRunId, setSelectedRunId] = useState<number | null>(null)
+  const selectedRun = useMemo(
+    () => runsForEvent.find(r => r.id === selectedRunId) ?? latestRun,
+    [runsForEvent, selectedRunId, latestRun],
+  )
+
+  // When the event tab changes or new runs arrive, reset selection so the
+  // user sees penalties for whatever is most relevant (active or latest).
+  useEffect(() => { setSelectedRunId(null) }, [event, team.id, competition.id])
+
   const [penalties, setPenalties]     = useState<Penalty[]>([])
   const [showPenalty, setShowPenalty] = useState(false)
 
   const refreshPenalties = useCallback(() => {
-    if (!latestRun) { setPenalties([]); return }
-    penaltiesApi.listByRun(latestRun.id)
+    if (!selectedRun) { setPenalties([]); return }
+    penaltiesApi.listByRun(selectedRun.id)
       .then(({ data }) => setPenalties(data))
       .catch(console.error)
-  }, [latestRun])
+  }, [selectedRun])
 
   useEffect(() => { refreshPenalties() }, [refreshPenalties])
 
@@ -186,30 +197,43 @@ export default function RunControls({ team, competition, onRunsChanged }: Props)
       {runsForEvent.length > 0 && (
         <div className="border-t border-ev-border pt-3">
           <p className="text-xs text-slate-400 uppercase tracking-widest font-semibold mb-2">
-            Attempts ({EVENT_LABELS[event]})
+            Attempts ({EVENT_LABELS[event]}) — click to view its penalties
           </p>
           <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto">
-            {runsForEvent.map((r) => (
-              <div key={r.id} className="flex items-center justify-between text-sm">
-                <span className="text-slate-600">#{r.attempt_number}</span>
-                <span className="tabular-nums text-slate-700">{formatMetric(r)}</span>
-                <span className={[
-                  "text-xs px-2 py-0.5 rounded-full capitalize",
-                  r.outcome === "running"  ? "bg-amber-500/20 text-amber-600" :
-                  r.outcome === "finished" ? "bg-emerald-500/20 text-emerald-600" :
-                                             "bg-red-500/20 text-red-500",
-                ].join(" ")}>{r.outcome}</span>
-              </div>
-            ))}
+            {runsForEvent.map((r) => {
+              const isSelected = selectedRun?.id === r.id
+              return (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => setSelectedRunId(r.id)}
+                  className={[
+                    "flex items-center justify-between text-sm px-2 py-1 rounded-md border transition-colors text-left",
+                    isSelected
+                      ? "bg-ev-cyan/10 border-ev-cyan/40"
+                      : "border-transparent hover:bg-slate-50",
+                  ].join(" ")}
+                >
+                  <span className="text-slate-600 font-medium">#{r.attempt_number}</span>
+                  <span className="tabular-nums text-slate-700">{formatMetric(r)}</span>
+                  <span className={[
+                    "text-xs px-2 py-0.5 rounded-full capitalize",
+                    r.outcome === "running"  ? "bg-amber-500/20 text-amber-600" :
+                    r.outcome === "finished" ? "bg-emerald-500/20 text-emerald-600" :
+                                               "bg-red-500/20 text-red-500",
+                  ].join(" ")}>{r.outcome}</span>
+                </button>
+              )
+            })}
           </div>
         </div>
       )}
 
-      {latestRun && (
+      {selectedRun && (
         <div className="border-t border-ev-border pt-3">
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs text-slate-400 uppercase tracking-widest font-semibold">
-              Penalties — attempt {latestRun.attempt_number}
+              Penalties — attempt {selectedRun.attempt_number}
             </p>
             <button
               onClick={() => setShowPenalty(true)}
@@ -222,9 +246,9 @@ export default function RunControls({ team, competition, onRunsChanged }: Props)
         </div>
       )}
 
-      {showPenalty && latestRun && (
+      {showPenalty && selectedRun && (
         <PenaltyModal
-          run={latestRun}
+          run={selectedRun}
           onClose={() => setShowPenalty(false)}
           onDone={() => { setShowPenalty(false); refreshPenalties(); onRunsChanged?.() }}
         />
