@@ -205,8 +205,9 @@ export function downloadPdf(
       bodyStyles:         { fontSize: 6.5, textColor: DARK },
       alternateRowStyles: { fillColor: LIGHT },
       columnStyles:       { 0: { cellWidth: 38 } },
-      didDrawPage: () => {
-        // Repeat header banner on subsequent pages
+      didDrawPage: (data) => {
+        if (data.pageNumber === 1) return
+        // Mini header banner on pages 2+
         doc.setFillColor(...CYAN)
         doc.rect(0, 0, W, 8, "F")
         doc.setTextColor(...WHITE)
