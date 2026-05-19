@@ -18,11 +18,16 @@ export interface Team {
   joined_at:     string | null
 }
 
+export type EventType = "drag" | "gymkhana" | "endurance" | "efficiency"
+
+export const EVENT_TYPES: EventType[] = ["drag", "gymkhana", "endurance", "efficiency"]
+
 export interface Competition {
-  id:         number
-  name:       string
-  event_type: "drag" | "gymkhana" | "endurance"
-  created_at: string
+  id:          number
+  name:        string
+  event_type:  EventType        // legacy primary event (mirrors event_types[0])
+  event_types: EventType[]
+  created_at:  string
 }
 
 export interface CompetitionDetail extends Competition {

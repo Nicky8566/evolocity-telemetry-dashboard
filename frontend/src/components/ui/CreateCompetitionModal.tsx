@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { competitionsApi } from "../../api/competitions"
+import type { EventType } from "../../types"
 
 interface Props {
   onClose: () => void
@@ -24,7 +25,7 @@ export default function CreateCompetitionModal({ onClose, onDone }: Props) {
     setSaving(true)
     setError(null)
     try {
-      await competitionsApi.create(name.trim(), eventType)
+      await competitionsApi.create(name.trim(), [eventType as EventType])
       onDone()
     } catch {
       setError("Failed to create competition")

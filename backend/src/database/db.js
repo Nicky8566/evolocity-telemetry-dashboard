@@ -63,6 +63,16 @@ export async function initDb() {
   db.run(competitionTeamsDDL);
   db.run(alertDDL);
 
+  // Backfill competition_events from legacy competitions.event_type rows so
+  // multi-event reads return at least one event for pre-migration data.
+  db.run(`
+    INSERT INTO competition_events (competition_id, event_type)
+    SELECT c.id, c.event_type FROM competitions c
+    WHERE NOT EXISTS (
+      SELECT 1 FROM competition_events ce WHERE ce.competition_id = c.id
+    )
+  `);
+
   // Counter table (placeholder, will be removed)
   db.run(`
     CREATE TABLE IF NOT EXISTS counter_log (
