@@ -5,6 +5,7 @@ import { getAllTeams, saveTeamInfo, deleteTeamInfo, getTeamByEcu, updateTeamEcu,
 import { getAllCompetitions, createNewCompetition, getCompetitionDetails, assignTeam, unassignTeam } from '../controllers/competitionController.js';
 import { getAlertsHandler } from '../controllers/alertController.js';
 import { startRunHandler, stopRunHandler, listRunsHandler, getRunHandler } from '../controllers/runController.js';
+import { createPenaltyHandler, updatePenaltyHandler, deletePenaltyHandler, listPenaltiesHandler } from '../controllers/penaltyController.js';
 
 const router = Router();
 
@@ -48,5 +49,11 @@ router.get('/runs', listRunsHandler);
 router.get('/runs/:id', getRunHandler);
 router.post('/runs/start', startRunHandler);
 router.post('/runs/:id/stop', stopRunHandler);
+
+// Penalties
+router.get('/penalties', listPenaltiesHandler);
+router.post('/penalties', createPenaltyHandler);
+router.patch('/penalties/:id', updatePenaltyHandler);
+router.delete('/penalties/:id', deletePenaltyHandler);
 
 export default router;
