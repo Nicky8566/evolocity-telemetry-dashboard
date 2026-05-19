@@ -1,6 +1,8 @@
 import { insertECUFrame, getAllECUFrames, getUniqueECUSerials } from '../database/ecuDb.js';
 import { getTeamByEcu } from '../database/teamDb.js';
 import { insertAlert, updateAlertType, updateAlertEnd, getAlertById } from '../database/alertDb.js';
+import { getActiveRunForEcu } from '../database/runDb.js';
+import { applyPenalty } from './penaltyService.js';
 import { broadcastAlert } from '../../websocket.js';
 
 // ecu_serial → { alertId, startedAt, peakPower, escalated }
@@ -69,6 +71,23 @@ export function processECUFrame(payload) {
     updateAlertEnd(breach.alertId, breach.peakPower, endedAt, durationMs);
     activeBreaches.delete(ecu_serial);
     broadcastAlert({ type: 'alert', data: getAlertById(breach.alertId) });
+
+    // Rules RE.5.1.b: 5s base + 5s/sec in the Power Limiter's Penalty Zone.
+    // CR.3.4 says breaches <1s aren't penalised; that lines up with floor(ms/1000) being 0.
+    const penaltySeconds = 5 * Math.floor(durationMs / 1000);
+    if (penaltySeconds > 0) {
+      const run = getActiveRunForEcu(ecu_serial, 'efficiency');
+      if (run) {
+        applyPenalty({
+          run_id:       run.id,
+          penalty_type: 'power_zone',
+          value:        penaltySeconds,
+          unit:         'seconds',
+          source:       'auto',
+          note:         `Auto: ${(durationMs / 1000).toFixed(2)}s in penalty zone, peak ${breach.peakPower.toFixed(0)}W`,
+        });
+      }
+    }
   }
 
   const frame = {
