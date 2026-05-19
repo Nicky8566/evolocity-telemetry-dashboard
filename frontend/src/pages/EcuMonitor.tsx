@@ -312,7 +312,7 @@ export default function EcuMonitor() {
             const isOfflineOrNoSession = status !== "live"
 
             return (
-              <div key={ecu_serial} className="bg-ev-panel border border-ev-border rounded-xl p-5 flex flex-col gap-4 shadow-sm">
+              <div key={ecu_serial} className={`bg-ev-panel border-2 rounded-xl p-5 flex flex-col gap-4 transition-colors ${status === "live" ? "border-green-400" : "border-ev-border shadow-sm"}`}>
 
                 {/* Card header */}
                 <div className="flex items-center justify-between">
