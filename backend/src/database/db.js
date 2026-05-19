@@ -22,6 +22,25 @@ export function persist() {
   }, 500);
 }
 
+// sql.js can't ALTER a CHECK constraint, so we use SQLite's table-recreate procedure
+// when the live schema's CHECK lacks a value present in the latest DDL.
+function migrateCheckConstraint(tableName, newDDL, requiredValue) {
+  const result = db.exec(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?`, [tableName]);
+  if (result.length === 0 || result[0].values.length === 0) return;
+  const currentSql = result[0].values[0][0] || '';
+  if (currentSql.includes(`'${requiredValue}'`)) return;
+
+  const colsResult = db.exec(`PRAGMA table_info(${tableName})`);
+  const columns = colsResult[0].values.map(row => row[1]).join(', ');
+  const tmp = `_migration_${tableName}_old`;
+
+  db.run(`ALTER TABLE ${tableName} RENAME TO ${tmp}`);
+  db.run(newDDL);
+  db.run(`INSERT INTO ${tableName} (${columns}) SELECT ${columns} FROM ${tmp}`);
+  db.run(`DROP TABLE ${tmp}`);
+  console.log(`Migrated ${tableName} to include '${requiredValue}' in CHECK constraint.`);
+}
+
 export async function initDb() {
   const SQL = await initSqlJs();
 
@@ -31,6 +50,11 @@ export async function initDb() {
   } else {
     db = new SQL.Database();
   }
+
+  // Run CHECK-constraint migrations BEFORE the CREATE TABLE IF NOT EXISTS calls.
+  // Otherwise IF NOT EXISTS is a no-op and the old constraint stays in force.
+  migrateCheckConstraint('competitions', competitionDDL, 'efficiency');
+  migrateCheckConstraint('competition_events', competitionEventsDDL, 'efficiency');
 
   db.run(ecuDDL);
   db.run(teamDDL);

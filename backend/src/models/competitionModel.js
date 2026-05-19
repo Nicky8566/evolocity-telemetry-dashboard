@@ -1,16 +1,18 @@
 // competitionModel — shape and DDL for competition-related tables
 
+export const EVENT_TYPES = ['drag', 'gymkhana', 'endurance', 'efficiency'];
+
 export const competitionSchema = {
   id:         'INTEGER PRIMARY KEY AUTOINCREMENT',
   name:       'TEXT NOT NULL UNIQUE',
-  event_type: "TEXT CHECK(event_type IN ('drag', 'gymkhana', 'endurance')) NOT NULL DEFAULT 'drag'",
+  event_type: "TEXT CHECK(event_type IN ('drag', 'gymkhana', 'endurance', 'efficiency')) NOT NULL DEFAULT 'drag'",
   created_at: 'TEXT NOT NULL',
 };
 
 export const competitionEventSchema = {
   id:             'INTEGER PRIMARY KEY AUTOINCREMENT',
   competition_id: 'INTEGER NOT NULL',
-  event_type:     "TEXT CHECK(event_type IN ('drag', 'gymkhana', 'endurance')) NOT NULL",
+  event_type:     "TEXT CHECK(event_type IN ('drag', 'gymkhana', 'endurance', 'efficiency')) NOT NULL",
 };
 
 export const competitionTeamSchema = {
@@ -23,7 +25,7 @@ export const competitionDDL = `
   CREATE TABLE IF NOT EXISTS competitions (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     name       TEXT NOT NULL UNIQUE,
-    event_type TEXT CHECK(event_type IN ('drag', 'gymkhana', 'endurance')) NOT NULL DEFAULT 'drag',
+    event_type TEXT CHECK(event_type IN ('drag', 'gymkhana', 'endurance', 'efficiency')) NOT NULL DEFAULT 'drag',
     created_at TEXT NOT NULL
   )
 `;
@@ -32,7 +34,7 @@ export const competitionEventsDDL = `
   CREATE TABLE IF NOT EXISTS competition_events (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
     competition_id INTEGER NOT NULL,
-    event_type     TEXT CHECK(event_type IN ('drag', 'gymkhana', 'endurance')) NOT NULL,
+    event_type     TEXT CHECK(event_type IN ('drag', 'gymkhana', 'endurance', 'efficiency')) NOT NULL,
     FOREIGN KEY (competition_id) REFERENCES competitions(id)
   )
 `;

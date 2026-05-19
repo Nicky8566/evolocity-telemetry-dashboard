@@ -5,6 +5,7 @@ import {
   assignTeamToCompetition,
   unassignTeamFromCompetition,
 } from '../services/competitionService.js';
+import { EVENT_TYPES } from '../models/competitionModel.js';
 
 export function getAllCompetitions(req, res) {
   const rows = getCompetitions();
@@ -17,9 +18,8 @@ export function createNewCompetition(req, res) {
     return res.status(400).json({ error: 'Competition name is required' });
   }
 
-  const validTypes = ['drag', 'gymkhana', 'endurance'];
-  if (!event_type || !validTypes.includes(event_type)) {
-    return res.status(400).json({ error: 'event_type must be drag, gymkhana, or endurance' });
+  if (!event_type || !EVENT_TYPES.includes(event_type)) {
+    return res.status(400).json({ error: `event_type must be one of: ${EVENT_TYPES.join(', ')}` });
   }
 
   const result = createCompetition(name.trim(), event_type);
