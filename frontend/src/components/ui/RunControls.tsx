@@ -168,13 +168,18 @@ export default function RunControls({ team, competition, onRunsChanged }: Props)
         ) : (
           <button
             onClick={startAttempt}
-            disabled={busy}
-            className="px-4 py-2 text-sm bg-ev-orange text-white rounded-lg hover:opacity-90 disabled:opacity-40"
+            disabled={busy || team.ecu_serial == null}
+            title={team.ecu_serial == null ? "Assign an ECU to this team before starting a run." : undefined}
+            className="px-4 py-2 text-sm bg-ev-orange text-white rounded-lg hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Start Attempt {nextAttempt}
           </button>
         )}
       </div>
+
+      {!activeRun && team.ecu_serial == null && (
+        <p className="text-xs text-amber-600">This team has no ECU assigned — assign one in <span className="font-semibold">Teams</span> before starting a run.</p>
+      )}
 
       {error && <p className="text-xs text-red-500">{error}</p>}
 
