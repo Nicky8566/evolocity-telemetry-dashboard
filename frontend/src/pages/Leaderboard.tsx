@@ -41,6 +41,8 @@ export default function Leaderboard() {
         if (data.length > 0 && selectedId == null) setSelectedId(data[0].id)
       })
       .catch((e) => setError(String(e.message ?? e)))
+    // Intentionally only on mount — we don't want the list to reload when user picks a competition.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const refresh = useCallback(() => {
@@ -59,7 +61,8 @@ export default function Leaderboard() {
   useEffect(() => {
     if (nudge > 0) refresh()
     // refresh is stable per selectedId; the effect re-runs when nudge changes.
-  }, [nudge]) // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nudge])
 
   // Default to overall when switching competitions. If overall is empty but an event has rows, jump there.
   useEffect(() => {

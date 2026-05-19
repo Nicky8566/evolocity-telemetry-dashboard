@@ -161,6 +161,7 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useTelemetry() {
   const ctx = useContext(TelemetryContext)
   if (!ctx) throw new Error("useTelemetry must be used inside <TelemetryProvider>")

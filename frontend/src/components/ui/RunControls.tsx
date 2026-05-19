@@ -73,7 +73,7 @@ export default function RunControls({ team, competition, onRunsChanged }: Props)
     penaltiesApi.listByRun(latestRun.id)
       .then(({ data }) => setPenalties(data))
       .catch(console.error)
-  }, [latestRun?.id])
+  }, [latestRun])
 
   useEffect(() => { refreshPenalties() }, [refreshPenalties])
 
