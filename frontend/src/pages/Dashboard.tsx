@@ -13,9 +13,17 @@ import type { CompetitionDetail, ECUFrame, Team } from "../types";
 import ConfirmUnassignModal from "../components/ui/ConfirmUnassignModal";
 
 const EVENT_COLOURS: Record<string, string> = {
-  drag:      "bg-ev-cyan/10 text-ev-cyan border-ev-cyan/30",
-  gymkhana:  "bg-purple-500/10 text-purple-400 border-purple-500/30",
-  endurance: "bg-ev-orange/10 text-ev-orange border-ev-orange/30",
+  drag:       "bg-ev-cyan/10 text-ev-cyan border-ev-cyan/30",
+  gymkhana:   "bg-purple-500/10 text-purple-400 border-purple-500/30",
+  endurance:  "bg-ev-orange/10 text-ev-orange border-ev-orange/30",
+  efficiency: "bg-emerald-500/10 text-emerald-500 border-emerald-500/30",
+};
+
+const EVENT_LABELS: Record<string, string> = {
+  drag:       "Drag Race",
+  gymkhana:   "Gymkhana",
+  endurance:  "Endurance",
+  efficiency: "Efficiency",
 };
 
 const POWER_LIMIT_MIN     = 0;
@@ -180,9 +188,13 @@ export default function Dashboard() {
                 {competition ? competition.name : "Dashboard"}
               </h1>
               {competition && (
-                <span className={`text-xs px-2 py-0.5 rounded-full border font-medium capitalize ${EVENT_COLOURS[competition.event_type] ?? ""}`}>
-                  {competition.event_type}
-                </span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {competition.event_types.map((evt) => (
+                    <span key={evt} className={`text-xs px-2 py-0.5 rounded-full border font-medium capitalize ${EVENT_COLOURS[evt] ?? ""}`}>
+                      {EVENT_LABELS[evt] ?? evt}
+                    </span>
+                  ))}
+                </div>
               )}
             </div>
             <p className="text-slate-400 text-sm mt-0.5">

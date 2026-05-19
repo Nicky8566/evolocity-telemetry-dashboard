@@ -7,25 +7,30 @@ interface Props {
   onDone:  () => void
 }
 
-const EVENT_TYPES = [
-  { value: "drag",      label: "Drag Race",             desc: "Straight-line acceleration sprint" },
-  { value: "gymkhana",  label: "Gymkhana",              desc: "Agility course, tight manoeuvres" },
-  { value: "endurance", label: "Endurance & Efficiency", desc: "Long-run energy consumption" },
-] as const
+const EVENT_OPTIONS: { value: EventType; label: string; desc: string }[] = [
+  { value: "drag",       label: "Drag Race",  desc: "Straight-line acceleration sprint" },
+  { value: "gymkhana",   label: "Gymkhana",   desc: "Agility course, tight manoeuvres" },
+  { value: "endurance",  label: "Endurance",  desc: "Long-run circuit race" },
+  { value: "efficiency", label: "Efficiency", desc: "Lowest energy used during endurance" },
+]
 
 export default function CreateCompetitionModal({ onClose, onDone }: Props) {
-  const [name, setName]           = useState("")
-  const [eventType, setEventType] = useState<string>("")
-  const [saving, setSaving]       = useState(false)
-  const [error, setError]         = useState<string | null>(null)
+  const [name, setName]             = useState("")
+  const [selected, setSelected]     = useState<EventType[]>([])
+  const [saving, setSaving]         = useState(false)
+  const [error, setError]           = useState<string | null>(null)
+
+  function toggle(value: EventType) {
+    setSelected((curr) => curr.includes(value) ? curr.filter((v) => v !== value) : [...curr, value])
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!name.trim() || !eventType || saving) return
+    if (!name.trim() || selected.length === 0 || saving) return
     setSaving(true)
     setError(null)
     try {
-      await competitionsApi.create(name.trim(), [eventType as EventType])
+      await competitionsApi.create(name.trim(), selected)
       onDone()
     } catch {
       setError("Failed to create competition")
@@ -54,24 +59,35 @@ export default function CreateCompetitionModal({ onClose, onDone }: Props) {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs text-slate-500">Event type</label>
+            <label className="text-xs text-slate-500">Events ({selected.length} selected)</label>
             <div className="flex flex-col gap-2">
-              {EVENT_TYPES.map((et) => (
-                <button
-                  key={et.value}
-                  type="button"
-                  onClick={() => setEventType(et.value)}
-                  className={[
-                    "text-left px-3 py-2.5 rounded-lg border transition-colors",
-                    eventType === et.value
-                      ? "bg-ev-cyan/10 border-ev-cyan text-ev-cyan"
-                      : "border-ev-border text-slate-700 hover:border-slate-300",
-                  ].join(" ")}
-                >
-                  <p className="text-sm font-medium">{et.label}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">{et.desc}</p>
-                </button>
-              ))}
+              {EVENT_OPTIONS.map((et) => {
+                const checked = selected.includes(et.value)
+                return (
+                  <button
+                    key={et.value}
+                    type="button"
+                    onClick={() => toggle(et.value)}
+                    className={[
+                      "text-left px-3 py-2.5 rounded-lg border transition-colors flex items-start gap-3",
+                      checked
+                        ? "bg-ev-cyan/10 border-ev-cyan text-ev-cyan"
+                        : "border-ev-border text-slate-700 hover:border-slate-300",
+                    ].join(" ")}
+                  >
+                    <span className={[
+                      "mt-0.5 w-4 h-4 rounded border flex items-center justify-center text-xs shrink-0",
+                      checked ? "bg-ev-cyan border-ev-cyan text-white" : "border-slate-300",
+                    ].join(" ")}>
+                      {checked && "✓"}
+                    </span>
+                    <span className="min-w-0">
+                      <p className="text-sm font-medium">{et.label}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{et.desc}</p>
+                    </span>
+                  </button>
+                )
+              })}
             </div>
           </div>
 
@@ -87,7 +103,7 @@ export default function CreateCompetitionModal({ onClose, onDone }: Props) {
             </button>
             <button
               type="submit"
-              disabled={!name.trim() || !eventType || saving}
+              disabled={!name.trim() || selected.length === 0 || saving}
               className="px-4 py-2 text-sm bg-ev-cyan text-white rounded-lg disabled:opacity-40 hover:bg-ev-blue transition-colors"
             >
               {saving ? "Creating…" : "Create"}
