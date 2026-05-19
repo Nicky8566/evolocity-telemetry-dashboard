@@ -46,3 +46,15 @@ export function getUniqueECUSerials() {
   if (result.length === 0) return [];
   return result[0].values.map(row => row[0]);
 }
+
+export function getECUStatusData() {
+  const result = db.exec(`
+    SELECT ecu_serial, MAX(recorded_at) AS last_recorded_at, COUNT(*) AS total_frames
+    FROM ecu_data
+    GROUP BY ecu_serial
+    ORDER BY ecu_serial ASC
+  `);
+  if (result.length === 0) return [];
+  const { columns, values } = result[0];
+  return values.map(row => Object.fromEntries(columns.map((col, i) => [col, row[i]])));
+}

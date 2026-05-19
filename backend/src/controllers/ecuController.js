@@ -1,4 +1,5 @@
 import { processECUFrame, getECUHistory, getECUSerials as fetchSerials } from '../services/ecuService.js';
+import { getECUStatusData } from '../database/ecuDb.js';
 import { broadcast } from '../../websocket.js';
 
 export function receiveECUData(req, res) {
@@ -32,4 +33,9 @@ export function getECUData(req, res) {
 export function getECUSerials(req, res) {
   const serials = fetchSerials();
   res.json({ serials });
+}
+
+export function getECUStatus(req, res) {
+  const devices = getECUStatusData();
+  res.json({ devices });
 }

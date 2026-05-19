@@ -11,4 +11,5 @@ export const ecuApi = {
     return get<{ count: number; data: ECUFrame[] }>(`/ecu/history${query ? `?${query}` : ""}`)
   },
   serials: () => get<{ serials: number[] }>("/ecu/serials"),
+  status:  () => get<{ devices: { ecu_serial: number; last_recorded_at: string; total_frames: number }[] }>("/ecu/status"),
 }
