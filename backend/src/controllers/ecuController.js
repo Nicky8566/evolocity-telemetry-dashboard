@@ -20,8 +20,12 @@ export function receiveECUData(req, res) {
 }
 
 export function getECUData(req, res) {
-  const limit = req.query.limit ? parseInt(req.query.limit) : 1000;
-  const rows = getECUHistory(limit);
+  const { ecu_serial, from, limit } = req.query;
+  const rows = getECUHistory({
+    ecu_serial: ecu_serial ? parseInt(ecu_serial) : undefined,
+    from:       from       || undefined,
+    limit:      limit      ? parseInt(limit)      : undefined,
+  });
   res.json({ count: rows.length, data: rows });
 }
 

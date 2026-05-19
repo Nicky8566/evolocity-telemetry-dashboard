@@ -29,7 +29,7 @@ export function getCompetitionById(id) {
   );
 
   const teamsResult = db.exec(
-    `SELECT t.* FROM teams t
+    `SELECT t.*, ct.joined_at FROM teams t
      JOIN competition_teams ct ON ct.team_id = t.id
      WHERE ct.competition_id = ?`,
     [id]
@@ -50,8 +50,8 @@ export function addTeamToCompetition(competition_id, team_id) {
   );
   if (existing.length > 0 && existing[0].values.length > 0) return false;
   db.run(
-    'INSERT INTO competition_teams (competition_id, team_id) VALUES (?, ?)',
-    [competition_id, team_id]
+    'INSERT INTO competition_teams (competition_id, team_id, joined_at) VALUES (?, ?, ?)',
+    [competition_id, team_id, new Date().toISOString()]
   );
   persist();
   return true;

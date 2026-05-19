@@ -1,4 +1,5 @@
 import {
+  Brush,
   CartesianGrid,
   Line,
   LineChart,
@@ -10,19 +11,20 @@ import {
 import type { ECUFrame } from "../../types"
 
 interface Props {
-  title:   string
-  data:    ECUFrame[]
-  dataKey: "avg_voltage" | "avg_current"
-  color:   string
-  unit:    string
-  domain:  [number, number]
+  title:      string
+  data:       ECUFrame[]
+  dataKey:    "avg_voltage" | "avg_current" | "avg_power"
+  color:      string
+  unit:       string
+  domain:     [number, number]
+  showBrush?: boolean
 }
 
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
 }
 
-export default function ChartCard({ title, data, dataKey, color, unit, domain }: Props) {
+export default function ChartCard({ title, data, dataKey, color, unit, domain, showBrush }: Props) {
   return (
     <div
       className="bg-ev-panel border border-ev-border rounded-xl p-5 shadow-sm"
@@ -32,7 +34,7 @@ export default function ChartCard({ title, data, dataKey, color, unit, domain }:
         <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
         <p className="text-xs uppercase tracking-widest font-semibold" style={{ color }}>{title}</p>
       </div>
-      <ResponsiveContainer width="100%" height={220}>
+      <ResponsiveContainer width="100%" height={showBrush ? 260 : 220}>
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
           <XAxis
@@ -61,6 +63,16 @@ export default function ChartCard({ title, data, dataKey, color, unit, domain }:
             dot={false}
             isAnimationActive={false}
           />
+          {showBrush && (
+            <Brush
+              dataKey="timestamp"
+              tickFormatter={fmtTime}
+height={28}
+              stroke="#000"
+              fill="#f8fafc"
+              travellerWidth={6}
+            />
+          )}
         </LineChart>
       </ResponsiveContainer>
     </div>
