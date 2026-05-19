@@ -1,5 +1,5 @@
 import type { ECUFrame } from "../types"
-import { get } from "./client"
+import { del, get } from "./client"
 
 export const ecuApi = {
   history: (params?: { ecu_serial?: number; from?: string; limit?: number }) => {
@@ -11,4 +11,6 @@ export const ecuApi = {
     return get<{ count: number; data: ECUFrame[] }>(`/ecu/history${query ? `?${query}` : ""}`)
   },
   serials: () => get<{ serials: number[] }>("/ecu/serials"),
+  status:  () => get<{ devices: { ecu_serial: number; last_recorded_at: string; total_frames: number }[] }>("/ecu/status"),
+  deleteEcu: (serial: number) => del<{ message: string }>(`/ecu/${serial}`),
 }

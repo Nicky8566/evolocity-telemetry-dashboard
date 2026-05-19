@@ -3,8 +3,9 @@ import { useTelemetry } from "../../context/TelemetryContext";
 import logo from "../../assets/logo.png";
 
 const links = [
-  { to: "/", label: "Competitions" },
+  { to: "/",      label: "Competitions" },
   { to: "/teams", label: "Teams" },
+  { to: "/esps",  label: "ESPs" },
   { to: "/alerts", label: "Alerts" },
 ];
 

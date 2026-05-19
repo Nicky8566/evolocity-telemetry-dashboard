@@ -51,6 +51,7 @@ export default function Dashboard() {
   const [dateFrom, setDateFrom]         = useState("");
   const [dateTo, setDateTo]             = useState("");
 
+  // Ref so loadTeams can read current selectedTeam without it being a dependency
   const selectedTeamRef = useRef(selectedTeam);
   useEffect(() => { selectedTeamRef.current = selectedTeam; }, [selectedTeam]);
 

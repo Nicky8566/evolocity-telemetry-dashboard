@@ -5,6 +5,7 @@ import Dashboard from "./pages/Dashboard";
 import Leaderboard from "./pages/Leaderboard";
 import Alerts from "./pages/Alerts";
 import Teams from "./pages/Teams";
+import EcuMonitor from "./pages/EcuMonitor";
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
         <Route path="teams" element={<Teams />} />
         <Route path="leaderboard" element={<Leaderboard />} />
         <Route path="alerts" element={<Alerts />} />
+        <Route path="esps" element={<EcuMonitor />} />
       </Route>
     </Routes>
   );

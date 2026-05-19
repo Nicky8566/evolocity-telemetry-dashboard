@@ -32,7 +32,7 @@ function slugify(s: string) {
 
 export function downloadCsv(
   frames: ECUFrame[],
-  team: Team,
+  team: Team | null,
   competition: Competition | null,
   alerts: Alert[],
 ) {
@@ -54,12 +54,12 @@ export function downloadCsv(
     lines.push(`# Competition,${escape(competition.name)}`)
     lines.push(`# Event Type,${escape(competition.event_type)}`)
   }
-  lines.push(`# Team Name,${escape(team.team_name)}`)
-  lines.push(`# Team ID,${escape(team.team_id)}`)
-  lines.push(`# Vehicle Class,${escape(team.vehicle_class)}`)
-  lines.push(`# Vehicle Type,${escape(team.vehicle_type)}`)
-  lines.push(`# ECU Serial,${escape(team.ecu_serial ?? "N/A")}`)
-  lines.push(`# Power Limit,${escape(team.power_limit != null ? `${team.power_limit}W` : "N/A")}`)
+  lines.push(`# Team Name,${escape(team?.team_name ?? "Unassigned")}`)
+  lines.push(`# Team ID,${escape(team?.team_id ?? "N/A")}`)
+  lines.push(`# Vehicle Class,${escape(team?.vehicle_class ?? "N/A")}`)
+  lines.push(`# Vehicle Type,${escape(team?.vehicle_type ?? "N/A")}`)
+  lines.push(`# ECU Serial,${escape(team?.ecu_serial ?? frames[0]?.ecu_serial ?? "N/A")}`)
+  lines.push(`# Power Limit,${escape(team?.power_limit != null ? `${team.power_limit}W` : "N/A")}`)
   lines.push("#")
 
   // ── Run summary ──────────────────────────────────────────────────────────
@@ -114,7 +114,8 @@ export function downloadCsv(
   const date = new Date().toISOString().slice(0, 10)
   const comp = competition ? `_${slugify(competition.name)}` : ""
   a.href     = url
-  a.download = `evolocity_${slugify(team.team_name)}${comp}_${date}.csv`
+  const teamSlug = team ? slugify(team.team_name) : `esp${frames[0]?.ecu_serial ?? "unknown"}`
+  a.download = `evolocity_${teamSlug}${comp}_${date}.csv`
   a.click()
   URL.revokeObjectURL(url)
 }
