@@ -59,10 +59,21 @@ export default function Dashboard() {
           setAllTeams(data.teams);
           setRegisteredTeams(teamRows);
           if (data.teams.length > 0 && !selectedTeam) setSelectedTeam(data.teams[0]);
+          else if (selectedTeam) {
+            const refreshed = data.teams.find((t) => t.id === selectedTeam.id);
+            if (refreshed) setSelectedTeam(refreshed);
+          }
         })
         .catch(console.error);
     } else {
-      teamsApi.list().then(({ data }) => { setAllTeams(data); setRegisteredTeams(data); }).catch(console.error);
+      teamsApi.list().then(({ data }) => {
+        setAllTeams(data);
+        setRegisteredTeams(data);
+        if (selectedTeam) {
+          const refreshed = data.find((t) => t.id === selectedTeam.id);
+          if (refreshed) setSelectedTeam(refreshed);
+        }
+      }).catch(console.error);
     }
   }, [id, selectedTeam]);
 
@@ -359,7 +370,7 @@ export default function Dashboard() {
               const bid    = team.ecu_serial ? `ECU-${team.ecu_serial}` : null;
               const tframes = bid ? (boardData[bid] ?? []) : [];
               const last   = tframes.at(-1);
-              const isLive = last && last.avg_voltage > 0;
+              const isLive = last && last.avg_voltage > 0 && (Date.now() - new Date(last.timestamp).getTime()) < 5000;
               const isDead = tframes.length > 0 && !isLive;
 
               return (
