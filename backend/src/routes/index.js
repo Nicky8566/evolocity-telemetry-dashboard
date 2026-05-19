@@ -6,6 +6,7 @@ import { getAllCompetitions, createNewCompetition, getCompetitionDetails, assign
 import { getAlertsHandler } from '../controllers/alertController.js';
 import { startRunHandler, stopRunHandler, listRunsHandler, getRunHandler } from '../controllers/runController.js';
 import { createPenaltyHandler, updatePenaltyHandler, deletePenaltyHandler, listPenaltiesHandler } from '../controllers/penaltyController.js';
+import { getLeaderboardHandler } from '../controllers/scoringController.js';
 
 const router = Router();
 
@@ -43,6 +44,7 @@ router.get('/competitions/:id', getCompetitionDetails);
 router.post('/competitions/create', createNewCompetition);
 router.post('/competitions/assign-team', assignTeam);
 router.post('/competitions/unassign-team', unassignTeam);
+router.get('/competitions/:id/leaderboard', getLeaderboardHandler);
 
 // Runs
 router.get('/runs', listRunsHandler);
