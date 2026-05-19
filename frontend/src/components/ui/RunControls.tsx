@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { penaltiesApi } from "../../api/penalties"
 import { runsApi } from "../../api/runs"
-import type { CompetitionDetail, EventType, Run, RunOutcome, Team } from "../../types"
+import type { CompetitionDetail, EventType, Penalty, Run, RunOutcome, Team } from "../../types"
+import PenaltyList from "./PenaltyList"
+import PenaltyModal from "./PenaltyModal"
 
 interface Props {
   team:        Team
@@ -51,7 +54,21 @@ export default function RunControls({ team, competition, onRunsChanged }: Props)
 
   const runsForEvent = useMemo(() => runs.filter(r => r.event_type === event), [runs, event])
   const activeRun    = useMemo(() => runsForEvent.find(r => r.outcome === "running") ?? null, [runsForEvent])
+  const latestRun    = activeRun ?? runsForEvent.at(-1) ?? null
   const nextAttempt  = (runsForEvent.at(-1)?.attempt_number ?? 0) + 1
+
+  // Penalties shown for whichever run is "current" (active, else the last attempt).
+  const [penalties, setPenalties]     = useState<Penalty[]>([])
+  const [showPenalty, setShowPenalty] = useState(false)
+
+  const refreshPenalties = useCallback(() => {
+    if (!latestRun) { setPenalties([]); return }
+    penaltiesApi.listByRun(latestRun.id)
+      .then(({ data }) => setPenalties(data))
+      .catch(console.error)
+  }, [latestRun?.id])
+
+  useEffect(() => { refreshPenalties() }, [refreshPenalties])
 
   async function startAttempt() {
     setBusy(true)
@@ -169,6 +186,31 @@ export default function RunControls({ team, competition, onRunsChanged }: Props)
             ))}
           </div>
         </div>
+      )}
+
+      {latestRun && (
+        <div className="border-t border-ev-border pt-3">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs text-slate-400 uppercase tracking-widest font-semibold">
+              Penalties — attempt {latestRun.attempt_number}
+            </p>
+            <button
+              onClick={() => setShowPenalty(true)}
+              className="text-xs px-2.5 py-1 rounded-md bg-red-500 text-white hover:bg-red-600 transition-colors"
+            >
+              + Penalty
+            </button>
+          </div>
+          <PenaltyList penalties={penalties} onChange={() => { refreshPenalties(); onRunsChanged?.() }} />
+        </div>
+      )}
+
+      {showPenalty && latestRun && (
+        <PenaltyModal
+          run={latestRun}
+          onClose={() => setShowPenalty(false)}
+          onDone={() => { setShowPenalty(false); refreshPenalties(); onRunsChanged?.() }}
+        />
       )}
     </div>
   )
