@@ -4,6 +4,7 @@ import { receiveECUData, getECUData, getECUSerials } from '../controllers/ecuCon
 import { getAllTeams, saveTeamInfo, deleteTeamInfo, getTeamByEcu, updateTeamEcu, getTeamByName, getTeamByTeamId, updateTeamPowerLimit } from '../controllers/teamController.js';
 import { getAllCompetitions, createNewCompetition, getCompetitionDetails, assignTeam, unassignTeam } from '../controllers/competitionController.js';
 import { getAlertsHandler } from '../controllers/alertController.js';
+import { startRunHandler, stopRunHandler, listRunsHandler, getRunHandler } from '../controllers/runController.js';
 
 const router = Router();
 
@@ -41,4 +42,11 @@ router.get('/competitions/:id', getCompetitionDetails);
 router.post('/competitions/create', createNewCompetition);
 router.post('/competitions/assign-team', assignTeam);
 router.post('/competitions/unassign-team', unassignTeam);
+
+// Runs
+router.get('/runs', listRunsHandler);
+router.get('/runs/:id', getRunHandler);
+router.post('/runs/start', startRunHandler);
+router.post('/runs/:id/stop', stopRunHandler);
+
 export default router;

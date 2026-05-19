@@ -5,6 +5,7 @@ import { ecuDDL }                                              from '../models/e
 import { teamDDL }                                             from '../models/teamModel.js';
 import { competitionDDL, competitionEventsDDL, competitionTeamsDDL } from '../models/competitionModel.js';
 import { alertDDL }                                            from '../models/alertModel.js';
+import { runDDL }                                              from '../models/runModel.js';
 
 const DB_PATH = path.resolve('./evolocity.db');
 export let db;
@@ -62,6 +63,7 @@ export async function initDb() {
   db.run(competitionEventsDDL);
   db.run(competitionTeamsDDL);
   db.run(alertDDL);
+  db.run(runDDL);
 
   // Backfill competition_events from legacy competitions.event_type rows so
   // multi-event reads return at least one event for pre-migration data.
