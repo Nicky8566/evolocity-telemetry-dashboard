@@ -65,6 +65,17 @@ export function removeTeamFromCompetition(competition_id, team_id) {
   persist();
 }
 
+export function getTeamCompetitionAssignments() {
+  const result = db.exec(`
+    SELECT ct.team_id, c.id AS competition_id, c.name AS competition_name, c.event_type
+    FROM competition_teams ct
+    JOIN competitions c ON ct.competition_id = c.id
+  `);
+  if (result.length === 0) return [];
+  const { columns, values } = result[0];
+  return values.map(row => Object.fromEntries(columns.map((col, i) => [col, row[i]])));
+}
+
 export function competitionNameExists(name) {
   const result = db.exec(
     'SELECT COUNT(*) as count FROM competitions WHERE name = ?',

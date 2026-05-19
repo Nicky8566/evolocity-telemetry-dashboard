@@ -1,5 +1,5 @@
 import { processECUFrame, getECUHistory, getECUSerials as fetchSerials } from '../services/ecuService.js';
-import { getECUStatusData } from '../database/ecuDb.js';
+import { getECUStatusData, deleteECUBySerial } from '../database/ecuDb.js';
 import { broadcast } from '../../websocket.js';
 
 export function receiveECUData(req, res) {
@@ -38,4 +38,11 @@ export function getECUSerials(req, res) {
 export function getECUStatus(req, res) {
   const devices = getECUStatusData();
   res.json({ devices });
+}
+
+export function deleteECU(req, res) {
+  const serial = parseInt(req.params.serial);
+  if (isNaN(serial)) return res.status(400).json({ error: 'Invalid ECU serial' });
+  deleteECUBySerial(serial);
+  res.json({ message: `ESP-${serial} and all its data deleted` });
 }

@@ -63,7 +63,9 @@ export default function EcuMonitor() {
   const [assigning, setAssigning]             = useState<number | null>(null)
   const [exportingEsp, setExportingEsp]       = useState<number | null>(null)
   const [deleteTarget, setDeleteTarget]       = useState<EcuDevice | null>(null)
+  const [confirmUnassign, setConfirmUnassign] = useState<{ ecu_serial: number; teamName: string } | null>(null)
   const [searchQuery, setSearchQuery]         = useState("")
+  const [sortBy, setSortBy]                   = useState<"serial" | "lastSeen" | "team">("serial")
   const [autoRefresh, setAutoRefresh]         = useState(false)
   const autoRefreshRef                        = useRef<number | null>(null)
 
@@ -184,18 +186,32 @@ export default function EcuMonitor() {
     load()
   }
 
-  // Filter by search, then sort: live → offline → no-session, then by serial
+  // Filter by search, then sort: live → offline → no-session first, then by chosen criterion
   const displayDevices = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
     const filtered = q
       ? devices.filter((d) => String(d.ecu_serial).includes(q))
       : devices
     return [...filtered].sort((a, b) => {
-      const diff = STATUS_ORDER[getStatus(a.ecu_serial)] - STATUS_ORDER[getStatus(b.ecu_serial)]
-      return diff !== 0 ? diff : a.ecu_serial - b.ecu_serial
+      const statusDiff = STATUS_ORDER[getStatus(a.ecu_serial)] - STATUS_ORDER[getStatus(b.ecu_serial)]
+      if (statusDiff !== 0) return statusDiff
+      switch (sortBy) {
+        case "lastSeen": {
+          const aT = liveData[a.ecu_serial]?.last?.timestamp ?? a.last_recorded_at
+          const bT = liveData[b.ecu_serial]?.last?.timestamp ?? b.last_recorded_at
+          return new Date(bT).getTime() - new Date(aT).getTime()
+        }
+        case "team": {
+          const aName = teams.find((t) => t.ecu_serial === a.ecu_serial)?.team_name ?? "￿"
+          const bName = teams.find((t) => t.ecu_serial === b.ecu_serial)?.team_name ?? "￿"
+          return aName.localeCompare(bName)
+        }
+        default:
+          return a.ecu_serial - b.ecu_serial
+      }
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [devices, searchQuery, liveData])
+  }, [devices, searchQuery, liveData, sortBy, teams])
 
   const liveCount       = Object.values(liveData).filter((d) => d.isLive).length
   const unassignedCount = devices.filter((d) => !teams.some((t) => t.ecu_serial === d.ecu_serial)).length
@@ -247,14 +263,24 @@ export default function EcuMonitor() {
           </div>
         ))}
 
-        {/* Search */}
-        <div className="ml-auto">
+        {/* Sort + Search */}
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-xs text-slate-400 shrink-0">Sort by</span>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+            className="bg-white border border-ev-border rounded-lg px-2 py-2 text-xs text-slate-600 focus:outline-none focus:border-ev-cyan"
+          >
+            <option value="serial">Serial</option>
+            <option value="lastSeen">Last seen</option>
+            <option value="team">Team name</option>
+          </select>
           <input
             type="text"
-            placeholder="Search ESP serial…"
+            placeholder="Search serial…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="bg-white border border-ev-border rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-ev-cyan w-48"
+            className="bg-white border border-ev-border rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-ev-cyan w-40"
           />
         </div>
       </div>
@@ -359,40 +385,42 @@ export default function EcuMonitor() {
                   {assignedTeam ? (
                     <>
                       <div className="flex items-start justify-between">
-                        <div>
+                        <div className="min-w-0">
                           <p className="text-xs text-slate-400">Assigned to</p>
-                          <p className="text-sm font-semibold text-slate-900">{assignedTeam.team_name}</p>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="text-sm font-semibold text-slate-900">{assignedTeam.team_name}</p>
+                            <select
+                              disabled={busy}
+                              onChange={(e) => { if (e.target.value) handleAssign(ecu_serial, parseInt(e.target.value)); e.target.value = "" }}
+                              defaultValue=""
+                              className="text-xs border border-ev-border rounded-md px-1.5 py-0.5 text-slate-500 bg-white focus:outline-none focus:border-ev-cyan disabled:opacity-40"
+                            >
+                              <option value="" disabled>Reassign…</option>
+                              {teams.filter((t) => t.id !== assignedTeam.id).map((t) => (
+                                <option key={t.id} value={t.id}>
+                                  {t.team_name}{t.ecu_serial != null ? " (has ESP)" : ""}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={() => setConfirmUnassign({ ecu_serial, teamName: assignedTeam.team_name })}
+                              disabled={busy}
+                              className="text-xs px-2.5 py-0.5 rounded-md border border-red-300 text-red-500 hover:bg-red-50 transition-colors disabled:opacity-40"
+                            >
+                              Unassign
+                            </button>
+                          </div>
                           <p className="text-xs text-slate-400 mt-0.5 capitalize">
                             {assignedTeam.vehicle_class} · {assignedTeam.vehicle_type}
                           </p>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right shrink-0">
                           <p className="text-xs text-slate-400">Power limit</p>
                           <p className="text-sm font-semibold text-slate-900">
                             {assignedTeam.power_limit != null ? `${assignedTeam.power_limit}W` : "—"}
                           </p>
                         </div>
                       </div>
-                      <select
-                        disabled={busy}
-                        onChange={(e) => { if (e.target.value) handleAssign(ecu_serial, parseInt(e.target.value)); e.target.value = "" }}
-                        defaultValue=""
-                        className="w-full py-1.5 px-2 rounded-lg border border-ev-border text-xs text-slate-600 bg-white focus:outline-none focus:border-ev-cyan disabled:opacity-40"
-                      >
-                        <option value="" disabled>Reassign to different team…</option>
-                        {teams.filter((t) => t.id !== assignedTeam.id).map((t) => (
-                          <option key={t.id} value={t.id}>
-                            {t.team_name}{t.ecu_serial != null ? " (has ESP)" : ""}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        onClick={() => handleAssign(ecu_serial, null)}
-                        disabled={busy}
-                        className="w-full py-1.5 rounded-lg border border-ev-border text-xs text-slate-500 hover:border-red-300 hover:text-red-500 transition-colors disabled:opacity-40"
-                      >
-                        {busy ? "Unassigning…" : "Unassign"}
-                      </button>
                     </>
                   ) : (
                     <>
@@ -440,6 +468,38 @@ export default function EcuMonitor() {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Unassign confirmation modal */}
+      {confirmUnassign && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setConfirmUnassign(null)} />
+          <div className="relative bg-ev-panel border border-ev-border rounded-2xl shadow-xl w-full max-w-sm flex flex-col gap-5 p-6">
+            <div>
+              <p className="text-xs text-red-500 uppercase tracking-widest font-semibold mb-1">Unassign ESP</p>
+              <p className="text-slate-900 font-semibold text-base">
+                Remove ESP-{confirmUnassign.ecu_serial} from {confirmUnassign.teamName}?
+              </p>
+              <p className="text-slate-400 text-sm mt-1">
+                The ESP will become unassigned. No data will be deleted.
+              </p>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setConfirmUnassign(null)}
+                className="px-4 py-2 text-sm text-slate-500 border border-ev-border rounded-lg hover:text-slate-900 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { handleAssign(confirmUnassign.ecu_serial, null); setConfirmUnassign(null) }}
+                className="px-4 py-2 text-sm text-white bg-red-500 rounded-lg hover:bg-red-600 transition-colors"
+              >
+                Unassign
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

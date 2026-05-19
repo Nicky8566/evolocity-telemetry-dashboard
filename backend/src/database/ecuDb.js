@@ -47,6 +47,12 @@ export function getUniqueECUSerials() {
   return result[0].values.map(row => row[0]);
 }
 
+export function deleteECUBySerial(ecu_serial) {
+  db.run('UPDATE teams SET ecu_serial = NULL WHERE ecu_serial = ?', [ecu_serial]);
+  db.run('DELETE FROM ecu_data WHERE ecu_serial = ?', [ecu_serial]);
+  persist();
+}
+
 export function getECUStatusData() {
   const result = db.exec(`
     SELECT ecu_serial, MAX(recorded_at) AS last_recorded_at, COUNT(*) AS total_frames
