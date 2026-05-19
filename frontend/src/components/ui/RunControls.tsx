@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { penaltiesApi } from "../../api/penalties"
 import { runsApi } from "../../api/runs"
+import { useTelemetry } from "../../context/TelemetryContext"
 import type { CompetitionDetail, EventType, Penalty, Run, RunOutcome, Team } from "../../types"
 import PenaltyList from "./PenaltyList"
 import PenaltyModal from "./PenaltyModal"
@@ -33,6 +34,7 @@ function formatMetric(run: Run) {
 }
 
 export default function RunControls({ team, competition, onRunsChanged }: Props) {
+  const { runsVersion, penaltiesVersion } = useTelemetry()
   const eventTypes  = competition.event_types
   const [event, setEvent] = useState<EventType>(eventTypes[0])
   const [runs, setRuns]   = useState<Run[]>([])
@@ -52,6 +54,11 @@ export default function RunControls({ team, competition, onRunsChanged }: Props)
 
   useEffect(() => { refreshRuns() }, [refreshRuns])
 
+  // Live updates: refetch when WS reports a run/penalty change anywhere.
+  useEffect(() => {
+    if (runsVersion > 0) refreshRuns()
+  }, [runsVersion]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const runsForEvent = useMemo(() => runs.filter(r => r.event_type === event), [runs, event])
   const activeRun    = useMemo(() => runsForEvent.find(r => r.outcome === "running") ?? null, [runsForEvent])
   const latestRun    = activeRun ?? runsForEvent.at(-1) ?? null
@@ -69,6 +76,11 @@ export default function RunControls({ team, competition, onRunsChanged }: Props)
   }, [latestRun?.id])
 
   useEffect(() => { refreshPenalties() }, [refreshPenalties])
+
+  // Refetch this run's penalties when the WS reports a penalty change.
+  useEffect(() => {
+    if (penaltiesVersion > 0) refreshPenalties()
+  }, [penaltiesVersion]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function startAttempt() {
     setBusy(true)

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { competitionsApi } from "../api/competitions"
 import { scoringApi } from "../api/scoring"
+import { useTelemetry } from "../context/TelemetryContext"
 import type { Competition, CompetitionLeaderboard, EventType, LeaderboardEntry } from "../types"
 
 const EVENT_LABELS: Record<EventType, string> = {
@@ -25,6 +26,7 @@ function formatAdjusted(entry: LeaderboardEntry) {
 }
 
 export default function Leaderboard() {
+  const { leaderboardNudges } = useTelemetry()
   const [competitions, setCompetitions]   = useState<Competition[]>([])
   const [selectedId, setSelectedId]       = useState<number | null>(null)
   const [board, setBoard]                 = useState<CompetitionLeaderboard | null>(null)
@@ -51,6 +53,13 @@ export default function Leaderboard() {
   }, [selectedId])
 
   useEffect(() => { refresh() }, [refresh])
+
+  // Live updates: refetch when this competition's nudge counter ticks.
+  const nudge = selectedId != null ? (leaderboardNudges[selectedId] ?? 0) : 0
+  useEffect(() => {
+    if (nudge > 0) refresh()
+    // refresh is stable per selectedId; the effect re-runs when nudge changes.
+  }, [nudge]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Default to overall when switching competitions. If overall is empty but an event has rows, jump there.
   useEffect(() => {
