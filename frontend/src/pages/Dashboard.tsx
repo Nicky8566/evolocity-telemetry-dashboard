@@ -11,6 +11,7 @@ import StatCard from "../components/ui/StatCard";
 import { useTelemetry } from "../context/TelemetryContext";
 import type { CompetitionDetail, ECUFrame, Team } from "../types";
 import ConfirmUnassignModal from "../components/ui/ConfirmUnassignModal";
+import RunControls from "../components/ui/RunControls";
 
 const EVENT_COLOURS: Record<string, string> = {
   drag:       "bg-ev-cyan/10 text-ev-cyan border-ev-cyan/30",
@@ -220,6 +221,11 @@ export default function Dashboard() {
               <StatCard label="Power"   value={latestFrame?.avg_power?.toFixed(1)   ?? null} unit="W"  highlight={activePenalty} accentClass="border-t-ev-blue" />
               <StatCard label="Energy"  value={latestFrame?.avg_energy?.toFixed(5)  ?? null} unit="Wh" accentClass="border-t-green-500" />
             </div>
+
+            {/* Run controls — only when viewing a team inside a competition */}
+            {competition && (
+              <RunControls team={selectedTeam} competition={competition} />
+            )}
 
             {/* Power limit */}
             <div className="bg-ev-panel border border-ev-border rounded-xl p-5 flex flex-col gap-4 shadow-sm">
