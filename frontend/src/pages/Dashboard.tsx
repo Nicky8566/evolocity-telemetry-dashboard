@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { competitionsApi } from "../api/competitions";
 import { ecuApi } from "../api/ecu";
@@ -51,6 +51,10 @@ export default function Dashboard() {
   const [dateFrom, setDateFrom]         = useState("");
   const [dateTo, setDateTo]             = useState("");
 
+  // Ref so loadTeams can read current selectedTeam without it being a dependency
+  const selectedTeamRef = useRef(selectedTeam);
+  useEffect(() => { selectedTeamRef.current = selectedTeam; }, [selectedTeam]);
+
   const loadTeams = useCallback(() => {
     if (id) {
       Promise.all([competitionsApi.getById(parseInt(id)), teamsApi.list()])
@@ -58,10 +62,16 @@ export default function Dashboard() {
           setCompetition(data);
           setAllTeams(data.teams);
           setRegisteredTeams(teamRows);
-          if (data.teams.length > 0 && !selectedTeam) setSelectedTeam(data.teams[0]);
-          else if (selectedTeam) {
-            const refreshed = data.teams.find((t) => t.id === selectedTeam.id);
-            if (refreshed) setSelectedTeam(refreshed);
+          const current = selectedTeamRef.current;
+          if (data.teams.length > 0 && !current) {
+            setSelectedTeam(data.teams[0]);
+          } else if (current) {
+            const refreshed = data.teams.find((t) => t.id === current.id);
+            if (refreshed && (
+              refreshed.ecu_serial  !== current.ecu_serial  ||
+              refreshed.power_limit !== current.power_limit ||
+              refreshed.team_name   !== current.team_name
+            )) setSelectedTeam(refreshed);
           }
         })
         .catch(console.error);
@@ -69,13 +79,18 @@ export default function Dashboard() {
       teamsApi.list().then(({ data }) => {
         setAllTeams(data);
         setRegisteredTeams(data);
-        if (selectedTeam) {
-          const refreshed = data.find((t) => t.id === selectedTeam.id);
-          if (refreshed) setSelectedTeam(refreshed);
+        const current = selectedTeamRef.current;
+        if (current) {
+          const refreshed = data.find((t) => t.id === current.id);
+          if (refreshed && (
+            refreshed.ecu_serial  !== current.ecu_serial  ||
+            refreshed.power_limit !== current.power_limit ||
+            refreshed.team_name   !== current.team_name
+          )) setSelectedTeam(refreshed);
         }
       }).catch(console.error);
     }
-  }, [id, selectedTeam]);
+  }, [id]);
 
   useEffect(() => { loadTeams(); }, [loadTeams]);
 

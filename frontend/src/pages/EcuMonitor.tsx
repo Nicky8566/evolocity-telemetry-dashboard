@@ -1,8 +1,14 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { Link } from "react-router-dom"
+import { alertsApi } from "../api/alerts"
+import { competitionsApi } from "../api/competitions"
 import { ecuApi } from "../api/ecu"
 import { teamsApi } from "../api/teams"
+import DeleteEspModal from "../components/ui/DeleteEspModal"
 import { useTelemetry } from "../context/TelemetryContext"
 import type { Team } from "../types"
+import { downloadCsv } from "../utils/exportCsv"
+import { downloadPdf } from "../utils/exportPdf"
 
 interface EcuDevice {
   ecu_serial:       number
@@ -10,16 +16,16 @@ interface EcuDevice {
   total_frames:     number
 }
 
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime()
-  if (diff < 5000)    return "just now"
-  if (diff < 60000)   return `${Math.floor(diff / 1000)}s ago`
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`
-  return new Date(iso).toLocaleDateString()
+interface CompetitionAssignment {
+  team_id:          number
+  competition_id:   number
+  competition_name: string
+  event_type:       string
 }
 
 type Status = "live" | "offline" | "no-session"
+
+const STATUS_ORDER: Record<Status, number> = { live: 0, offline: 1, "no-session": 2 }
 
 const STATUS_BADGE: Record<Status, { label: string; className: string }> = {
   live:         { label: "Live",            className: "bg-green-100 text-green-700 border-green-200" },
@@ -33,19 +39,47 @@ const STATUS_DOT: Record<Status, string> = {
   "no-session": "bg-slate-300",
 }
 
+const EVENT_COLOURS: Record<string, string> = {
+  drag:      "bg-ev-cyan/10 text-ev-cyan border-ev-cyan/30",
+  gymkhana:  "bg-purple-500/10 text-purple-400 border-purple-500/30",
+  endurance: "bg-ev-orange/10 text-ev-orange border-ev-orange/30",
+}
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  if (diff < 5000)     return "just now"
+  if (diff < 60000)    return `${Math.floor(diff / 1000)}s ago`
+  if (diff < 3600000)  return `${Math.floor(diff / 60000)}m ago`
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`
+  return new Date(iso).toLocaleDateString()
+}
+
 export default function EcuMonitor() {
-  const { boardData }                   = useTelemetry()
-  const [devices, setDevices]           = useState<EcuDevice[]>([])
-  const [teams, setTeams]               = useState<Team[]>([])
-  const [loading, setLoading]           = useState(true)
-  const [assigning, setAssigning]       = useState<number | null>(null)
+  const { boardData }                         = useTelemetry()
+  const [devices, setDevices]                 = useState<EcuDevice[]>([])
+  const [teams, setTeams]                     = useState<Team[]>([])
+  const [competitionMap, setCompetitionMap]   = useState<Map<number, CompetitionAssignment>>(new Map())
+  const [loading, setLoading]                 = useState(true)
+  const [assigning, setAssigning]             = useState<number | null>(null)
+  const [exportingEsp, setExportingEsp]       = useState<number | null>(null)
+  const [deleteTarget, setDeleteTarget]       = useState<EcuDevice | null>(null)
+  const [searchQuery, setSearchQuery]         = useState("")
+  const [autoRefresh, setAutoRefresh]         = useState(false)
+  const autoRefreshRef                        = useRef<number | null>(null)
 
   function load() {
     setLoading(true)
-    Promise.all([ecuApi.status(), teamsApi.list()])
-      .then(([{ devices: devs }, { data: teamList }]) => {
+    Promise.all([
+      ecuApi.status(),
+      teamsApi.list(),
+      competitionsApi.teamAssignments().catch(() => ({ assignments: [] })),
+    ])
+      .then(([{ devices: devs }, { data: teamList }, { assignments }]) => {
         setDevices(devs)
         setTeams(teamList)
+        const map = new Map<number, CompetitionAssignment>()
+        assignments.forEach((a) => map.set(a.team_id, a))
+        setCompetitionMap(map)
       })
       .catch(console.error)
       .finally(() => setLoading(false))
@@ -53,24 +87,17 @@ export default function EcuMonitor() {
 
   useEffect(() => { load() }, [])
 
-  async function handleAssign(ecuSerial: number, newTeamId: number | null) {
-    setAssigning(ecuSerial)
-    try {
-      // Clear ECU from whichever team currently holds it (may differ from newTeamId)
-      const currentHolder = teams.find((t) => t.ecu_serial === ecuSerial)
-      if (currentHolder) await teamsApi.updateEcu(currentHolder.id, null)
-      // Assign to new team if one was selected
-      if (newTeamId !== null) await teamsApi.updateEcu(newTeamId, String(ecuSerial))
-      const { data: updated } = await teamsApi.list()
-      setTeams(updated)
-    } catch (err) {
-      console.error(err)
-    } finally {
-      setAssigning(null)
+  // Auto-refresh: re-fetch DB data every 15s when enabled
+  useEffect(() => {
+    if (autoRefresh) {
+      autoRefreshRef.current = window.setInterval(load, 15000)
+    } else {
+      if (autoRefreshRef.current !== null) window.clearInterval(autoRefreshRef.current)
     }
-  }
+    return () => { if (autoRefreshRef.current !== null) window.clearInterval(autoRefreshRef.current) }
+  }, [autoRefresh])
 
-  // Live telemetry snapshot per serial from WebSocket context
+  // Live telemetry snapshot per serial
   const liveData = useMemo(() => {
     const map: Record<number, { last: (typeof boardData)[string][number]; isLive: boolean }> = {}
     for (const [boardId, frames] of Object.entries(boardData)) {
@@ -84,14 +111,94 @@ export default function EcuMonitor() {
     return map
   }, [boardData])
 
-  const liveCount       = Object.values(liveData).filter((d) => d.isLive).length
-  const unassignedCount = devices.filter((d) => !teams.some((t) => t.ecu_serial === d.ecu_serial)).length
-
   function getStatus(serial: number): Status {
     const d = liveData[serial]
     if (!d) return "no-session"
     return d.isLive ? "live" : "offline"
   }
+
+  async function handleAssign(ecuSerial: number, newTeamId: number | null) {
+    setAssigning(ecuSerial)
+    try {
+      const currentHolder = teams.find((t) => t.ecu_serial === ecuSerial)
+      if (currentHolder) await teamsApi.updateEcu(currentHolder.id, null)
+      if (newTeamId !== null) await teamsApi.updateEcu(newTeamId, String(ecuSerial))
+      const [{ data: updatedTeams }, { assignments }] = await Promise.all([
+        teamsApi.list(),
+        competitionsApi.teamAssignments(),
+      ])
+      setTeams(updatedTeams)
+      const map = new Map<number, CompetitionAssignment>()
+      assignments.forEach((a) => map.set(a.team_id, a))
+      setCompetitionMap(map)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setAssigning(null)
+    }
+  }
+
+  async function handleExport(ecuSerial: number, format: "csv" | "pdf") {
+    setExportingEsp(ecuSerial)
+    try {
+      const assignedTeam = teams.find((t) => t.ecu_serial === ecuSerial) ?? null
+      const compAssign   = assignedTeam ? competitionMap.get(assignedTeam.id) ?? null : null
+      const competition  = compAssign
+        ? { id: compAssign.competition_id, name: compAssign.competition_name, event_type: compAssign.event_type as "drag" | "gymkhana" | "endurance", created_at: "" }
+        : null
+
+      const [{ data: frames }, { data: alerts }] = await Promise.all([
+        ecuApi.history({ ecu_serial: ecuSerial }),
+        alertsApi.list({ ecu_serial: ecuSerial, limit: 1000 }),
+      ])
+
+      if (format === "csv") downloadCsv(frames, assignedTeam, competition, alerts)
+      else                  downloadPdf(frames, assignedTeam, competition, alerts)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setExportingEsp(null)
+    }
+  }
+
+  async function handleDelete(exportCsv: boolean, exportPdf: boolean) {
+    if (!deleteTarget) return
+    const { ecu_serial } = deleteTarget
+    const assignedTeam   = teams.find((t) => t.ecu_serial === ecu_serial) ?? null
+    const compAssign     = assignedTeam ? competitionMap.get(assignedTeam.id) ?? null : null
+    const competition    = compAssign
+      ? { id: compAssign.competition_id, name: compAssign.competition_name, event_type: compAssign.event_type as "drag" | "gymkhana" | "endurance", created_at: "" }
+      : null
+
+    if (exportCsv || exportPdf) {
+      const [{ data: frames }, { data: alerts }] = await Promise.all([
+        ecuApi.history({ ecu_serial }),
+        alertsApi.list({ ecu_serial, limit: 1000 }),
+      ])
+      if (exportCsv) downloadCsv(frames, assignedTeam, competition, alerts)
+      if (exportPdf) downloadPdf(frames, assignedTeam, competition, alerts)
+    }
+
+    await ecuApi.deleteEcu(ecu_serial)
+    setDeleteTarget(null)
+    load()
+  }
+
+  // Filter by search, then sort: live → offline → no-session, then by serial
+  const displayDevices = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    const filtered = q
+      ? devices.filter((d) => String(d.ecu_serial).includes(q))
+      : devices
+    return [...filtered].sort((a, b) => {
+      const diff = STATUS_ORDER[getStatus(a.ecu_serial)] - STATUS_ORDER[getStatus(b.ecu_serial)]
+      return diff !== 0 ? diff : a.ecu_serial - b.ecu_serial
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [devices, searchQuery, liveData])
+
+  const liveCount       = Object.values(liveData).filter((d) => d.isLive).length
+  const unassignedCount = devices.filter((d) => !teams.some((t) => t.ecu_serial === d.ecu_serial)).length
 
   return (
     <div className="flex flex-col gap-6">
@@ -104,18 +211,33 @@ export default function EcuMonitor() {
             Monitor connected ESP32 boards and manage team assignments.
           </p>
         </div>
-        <button
-          onClick={load}
-          className="px-3 py-1.5 rounded-lg border border-ev-border text-xs text-slate-500 hover:border-ev-cyan hover:text-ev-cyan transition-colors"
-        >
-          ↺ Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setAutoRefresh((v) => !v)}
+            className={[
+              "px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors",
+              autoRefresh
+                ? "border-ev-cyan text-ev-cyan bg-ev-cyan/5"
+                : "border-ev-border text-slate-500 hover:border-ev-cyan hover:text-ev-cyan",
+            ].join(" ")}
+            title="Refreshes the ESP list and team assignments every 15 seconds — useful during event setup when new boards may come online"
+          >
+            {autoRefresh ? "⟳ Auto-refresh on" : "⟳ Auto-refresh off"}
+          </button>
+          <button
+            onClick={load}
+            className="px-3 py-1.5 rounded-lg border border-ev-border text-xs text-slate-500 hover:border-ev-cyan hover:text-ev-cyan transition-colors"
+            title="Re-fetch ESP list and team assignments from the database"
+          >
+            ↺ Refresh
+          </button>
+        </div>
       </div>
 
-      {/* Summary stat chips */}
-      <div className="flex gap-3">
+      {/* Summary + search row */}
+      <div className="flex items-center gap-3 flex-wrap">
         {[
-          { label: "Total ESPs",  value: devices.length, accent: "text-slate-400" },
+          { label: "Total ESPs",  value: devices.length, accent: "text-ev-cyan" },
           { label: "Live now",    value: liveCount,       accent: "text-green-500" },
           { label: "Unassigned",  value: unassignedCount, accent: "text-slate-400" },
         ].map(({ label, value, accent }) => (
@@ -124,43 +246,69 @@ export default function EcuMonitor() {
             <span className="text-2xl font-bold text-slate-900 tabular-nums">{value}</span>
           </div>
         ))}
+
+        {/* Search */}
+        <div className="ml-auto">
+          <input
+            type="text"
+            placeholder="Search ESP serial…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="bg-white border border-ev-border rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-ev-cyan w-48"
+          />
+        </div>
       </div>
 
-      {/* Content */}
+      {/* Cards */}
       {loading ? (
-        <div className="flex items-center justify-center h-48 text-slate-400 text-sm">
-          Loading ESPs...
-        </div>
-      ) : devices.length === 0 ? (
+        <div className="flex items-center justify-center h-48 text-slate-400 text-sm">Loading ESPs…</div>
+      ) : displayDevices.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-48 text-center gap-2 opacity-40 select-none">
           <p className="text-5xl">📡</p>
-          <p className="text-slate-700 font-medium">No ESPs recorded yet</p>
-          <p className="text-slate-400 text-sm">Start the simulator or connect an ESP32 to see boards here.</p>
+          <p className="text-slate-700 font-medium">
+            {searchQuery ? "No ESPs match your search" : "No ESPs recorded yet"}
+          </p>
+          <p className="text-slate-400 text-sm">
+            {searchQuery ? "Try a different serial number" : "Start the simulator or connect an ESP32 to see boards here."}
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {devices.map((device) => {
+          {displayDevices.map((device) => {
             const { ecu_serial, last_recorded_at, total_frames } = device
-            const status       = getStatus(ecu_serial)
-            const live         = liveData[ecu_serial]
-            const assignedTeam = teams.find((t) => t.ecu_serial === ecu_serial) ?? null
-            const busy         = assigning === ecu_serial
-            const lastSeen     = live?.last ? timeAgo(live.last.timestamp) : timeAgo(last_recorded_at)
+            const status        = getStatus(ecu_serial)
+            const live          = liveData[ecu_serial]
+            const assignedTeam  = teams.find((t) => t.ecu_serial === ecu_serial) ?? null
+            const compAssign    = assignedTeam ? competitionMap.get(assignedTeam.id) ?? null : null
+            const busy          = assigning === ecu_serial
+            const exporting     = exportingEsp === ecu_serial
+            const lastSeen      = live?.last ? timeAgo(live.last.timestamp) : timeAgo(last_recorded_at)
+            const isOfflineOrNoSession = status !== "live"
 
             return (
-              <div
-                key={ecu_serial}
-                className="bg-ev-panel border border-ev-border rounded-xl p-5 flex flex-col gap-4 shadow-sm"
-              >
+              <div key={ecu_serial} className="bg-ev-panel border border-ev-border rounded-xl p-5 flex flex-col gap-4 shadow-sm">
+
                 {/* Card header */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${STATUS_DOT[status]}`} />
                     <span className="font-bold text-slate-900 text-base">ESP-{ecu_serial}</span>
                   </div>
-                  <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${STATUS_BADGE[status].className}`}>
-                    {STATUS_BADGE[status].label}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${STATUS_BADGE[status].className}`}>
+                      {STATUS_BADGE[status].label}
+                    </span>
+                    {/* Delete button — only when not live */}
+                    {isOfflineOrNoSession && (
+                      <button
+                        onClick={() => setDeleteTarget(device)}
+                        className="text-slate-300 hover:text-red-400 transition-colors text-sm leading-none"
+                        title="Delete this ESP and all its data"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Telemetry snapshot */}
@@ -181,6 +329,31 @@ export default function EcuMonitor() {
                   ))}
                 </div>
 
+                {/* Competition */}
+                <div className="flex items-center justify-between pt-1 border-t border-ev-border">
+                  <div>
+                    <p className="text-xs text-slate-400 mb-0.5">Competition</p>
+                    {compAssign ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-medium text-slate-900">{compAssign.competition_name}</span>
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full border capitalize font-medium ${EVENT_COLOURS[compAssign.event_type] ?? ""}`}>
+                          {compAssign.event_type}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-slate-400">No competition</span>
+                    )}
+                  </div>
+                  {compAssign && (
+                    <Link
+                      to={`/competitions/${compAssign.competition_id}`}
+                      className="text-xs text-ev-cyan hover:underline shrink-0"
+                    >
+                      View Dashboard →
+                    </Link>
+                  )}
+                </div>
+
                 {/* Assignment section */}
                 <div className="flex flex-col gap-2 pt-1 border-t border-ev-border">
                   {assignedTeam ? (
@@ -189,7 +362,7 @@ export default function EcuMonitor() {
                         <div>
                           <p className="text-xs text-slate-400">Assigned to</p>
                           <p className="text-sm font-semibold text-slate-900">{assignedTeam.team_name}</p>
-                          <p className="text-xs text-slate-400 mt-0.5">
+                          <p className="text-xs text-slate-400 mt-0.5 capitalize">
                             {assignedTeam.vehicle_class} · {assignedTeam.vehicle_type}
                           </p>
                         </div>
@@ -200,25 +373,18 @@ export default function EcuMonitor() {
                           </p>
                         </div>
                       </div>
-                      {/* Reassign to different team */}
                       <select
                         disabled={busy}
-                        onChange={(e) => {
-                          const val = e.target.value
-                          if (val) handleAssign(ecu_serial, parseInt(val))
-                          e.target.value = ""
-                        }}
+                        onChange={(e) => { if (e.target.value) handleAssign(ecu_serial, parseInt(e.target.value)); e.target.value = "" }}
                         defaultValue=""
                         className="w-full py-1.5 px-2 rounded-lg border border-ev-border text-xs text-slate-600 bg-white focus:outline-none focus:border-ev-cyan disabled:opacity-40"
                       >
                         <option value="" disabled>Reassign to different team…</option>
-                        {teams
-                          .filter((t) => t.id !== assignedTeam.id)
-                          .map((t) => (
-                            <option key={t.id} value={t.id}>
-                              {t.team_name}{t.ecu_serial != null ? " (has ESP)" : ""}
-                            </option>
-                          ))}
+                        {teams.filter((t) => t.id !== assignedTeam.id).map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.team_name}{t.ecu_serial != null ? " (has ESP)" : ""}
+                          </option>
+                        ))}
                       </select>
                       <button
                         onClick={() => handleAssign(ecu_serial, null)}
@@ -233,11 +399,7 @@ export default function EcuMonitor() {
                       <p className="text-xs text-slate-400">Not assigned to any team</p>
                       <select
                         disabled={busy || teams.length === 0}
-                        onChange={(e) => {
-                          const val = e.target.value
-                          if (val) handleAssign(ecu_serial, parseInt(val))
-                          e.target.value = ""
-                        }}
+                        onChange={(e) => { if (e.target.value) handleAssign(ecu_serial, parseInt(e.target.value)); e.target.value = "" }}
                         defaultValue=""
                         className="w-full py-1.5 px-2 rounded-lg border border-ev-border text-xs text-slate-600 bg-white focus:outline-none focus:border-ev-cyan disabled:opacity-40"
                       >
@@ -254,15 +416,44 @@ export default function EcuMonitor() {
                   )}
                 </div>
 
-                {/* Footer */}
-                <div className="flex items-center justify-between text-xs text-slate-400 pt-1 border-t border-ev-border">
-                  <span>Last seen: {lastSeen}</span>
-                  <span>{total_frames.toLocaleString()} frames</span>
+                {/* Footer: last seen + frames + export */}
+                <div className="flex items-center justify-between pt-1 border-t border-ev-border">
+                  <div className="text-xs text-slate-400">
+                    <span>Last seen: {lastSeen}</span>
+                    <span className="mx-1.5">·</span>
+                    <span>{total_frames.toLocaleString()} frames</span>
+                  </div>
+                  <div className="flex gap-1.5">
+                    {(["csv", "pdf"] as const).map((fmt) => (
+                      <button
+                        key={fmt}
+                        onClick={() => handleExport(ecu_serial, fmt)}
+                        disabled={exporting}
+                        className="px-2 py-1 rounded border border-ev-border text-xs text-slate-500 hover:border-ev-cyan hover:text-ev-cyan transition-colors disabled:opacity-40"
+                        title={`Export ${fmt.toUpperCase()}`}
+                      >
+                        {exporting ? "…" : `↓ ${fmt.toUpperCase()}`}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             )
           })}
         </div>
+      )}
+
+      {/* Delete modal */}
+      {deleteTarget && (
+        <DeleteEspModal
+          device={deleteTarget}
+          assignedTeam={teams.find((t) => t.ecu_serial === deleteTarget.ecu_serial) ?? null}
+          competition={competitionMap.get(
+            teams.find((t) => t.ecu_serial === deleteTarget.ecu_serial)?.id ?? -1
+          ) ?? null}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={handleDelete}
+        />
       )}
     </div>
   )

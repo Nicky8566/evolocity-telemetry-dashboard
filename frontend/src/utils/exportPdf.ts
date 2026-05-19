@@ -25,7 +25,7 @@ function duration(ms: number | null) {
 
 export function downloadPdf(
   frames:      ECUFrame[],
-  team:        Team,
+  team:        Team | null,
   competition: Competition | null,
   alerts:      Alert[],
 ) {
@@ -90,13 +90,18 @@ export function downloadPdf(
     return ry
   }
 
-  const teamRows: [string, string][] = [
+  const ecuSerial = team?.ecu_serial ?? frames[0]?.ecu_serial ?? null
+  const teamRows: [string, string][] = team ? [
     ["Name",          team.team_name],
     ["Team ID",       team.team_id],
     ["Vehicle Class", team.vehicle_class],
     ["Vehicle Type",  team.vehicle_type],
     ["ECU Serial",    team.ecu_serial != null ? String(team.ecu_serial) : "N/A"],
     ["Power Limit",   team.power_limit != null ? `${team.power_limit}W` : "N/A"],
+  ] : [
+    ["Name",          "Unassigned"],
+    ["ECU Serial",    ecuSerial != null ? String(ecuSerial) : "N/A"],
+    ["Power Limit",   "N/A"],
   ]
 
   // Run summary values
@@ -241,5 +246,6 @@ export function downloadPdf(
   // ── Download ─────────────────────────────────────────────────────────────
   const date = new Date().toISOString().slice(0, 10)
   const comp = competition ? `_${slugify(competition.name)}` : ""
-  doc.save(`evolocity_${slugify(team.team_name)}${comp}_${date}.pdf`)
+  const teamSlug = team ? slugify(team.team_name) : `esp${frames[0]?.ecu_serial ?? "unknown"}`
+  doc.save(`evolocity_${teamSlug}${comp}_${date}.pdf`)
 }
