@@ -23,6 +23,9 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
   const [boardData, setBoardData] = useState<BoardData>({})
   const [alerts, setAlerts]       = useState<Alert[]>([])
   const zeroTimeoutsRef           = useRef<Record<string, number>>({})
+  const wsRef                     = useRef<WebSocket | null>(null)
+  const reconnectTimerRef         = useRef<number | null>(null)
+  const reconnectDelayRef         = useRef(1000)
 
   // Pre-populate charts with the last 5 minutes of stored data on first load
   useEffect(() => {
@@ -42,59 +45,82 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
       .catch((err) => console.error("Failed to load ECU history:", err))
   }, [])
 
-  // Data WebSocket — telemetry frames at 10Hz
+  // Data WebSocket — telemetry frames at 10Hz, with exponential-backoff reconnection
   useEffect(() => {
-    const ws = new WebSocket(WS_URL)
+    let destroyed = false
 
-    ws.onopen  = () => setConnected(true)
-    ws.onclose = () => setConnected(false)
-    ws.onerror = () => setConnected(false)
+    function connect() {
+      if (destroyed) return
+      const ws = new WebSocket(WS_URL)
+      wsRef.current = ws
 
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data as string)
-        if (msg.type !== "ecu_frame") return
+      ws.onopen = () => {
+        setConnected(true)
+        reconnectDelayRef.current = 1000
+      }
 
-        const frame: ECUFrame = msg.data
-        const boardId = `ECU-${frame.ecu_serial}`
+      ws.onclose = () => {
+        setConnected(false)
+        if (destroyed) return
+        reconnectTimerRef.current = window.setTimeout(() => {
+          reconnectDelayRef.current = Math.min(reconnectDelayRef.current * 2, 10000)
+          connect()
+        }, reconnectDelayRef.current)
+      }
 
-        window.clearTimeout(zeroTimeoutsRef.current[boardId])
+      // onerror is always followed by onclose — just let onclose handle the retry
+      ws.onerror = () => ws.close()
 
-        setBoardData((prev) => {
-          const cutoff = Date.now() - 5 * 60 * 1000
-          const updated = [...(prev[boardId] ?? []), frame].filter(
-            (f) => new Date(f.timestamp).getTime() >= cutoff
-          )
-          return { ...prev, [boardId]: updated }
-        })
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data as string)
+          if (msg.type !== "ecu_frame") return
 
-        // 3s silence → inject a zero frame so the chart drops to 0
-        zeroTimeoutsRef.current[boardId] = window.setTimeout(() => {
+          const frame: ECUFrame = msg.data
+          const boardId = `ECU-${frame.ecu_serial}`
+
+          window.clearTimeout(zeroTimeoutsRef.current[boardId])
+
           setBoardData((prev) => {
-            const existing = prev[boardId] ?? []
-            if (existing.length === 0) return prev
-            const last = existing[existing.length - 1]
-            if (last.avg_voltage === 0) return prev
-            const zeroFrame: ECUFrame = {
-              ...last,
-              timestamp:   new Date().toISOString(),
-              avg_voltage: 0,
-              avg_current: 0,
-              avg_power:   null,
-              avg_energy:  null,
-            }
             const cutoff = Date.now() - 5 * 60 * 1000
-            return { ...prev, [boardId]: [...existing, zeroFrame].filter((f) => new Date(f.timestamp).getTime() >= cutoff) }
+            const updated = [...(prev[boardId] ?? []), frame].filter(
+              (f) => new Date(f.timestamp).getTime() >= cutoff
+            )
+            return { ...prev, [boardId]: updated }
           })
-        }, 3000)
-      } catch {
-        // ignore malformed messages
+
+          // 3s silence → inject a zero frame so the chart drops to 0
+          zeroTimeoutsRef.current[boardId] = window.setTimeout(() => {
+            setBoardData((prev) => {
+              const existing = prev[boardId] ?? []
+              if (existing.length === 0) return prev
+              const last = existing[existing.length - 1]
+              if (last.avg_voltage === 0) return prev
+              const zeroFrame: ECUFrame = {
+                ...last,
+                timestamp:   new Date().toISOString(),
+                avg_voltage: 0,
+                avg_current: 0,
+                avg_power:   null,
+                avg_energy:  null,
+              }
+              const cutoff = Date.now() - 5 * 60 * 1000
+              return { ...prev, [boardId]: [...existing, zeroFrame].filter((f) => new Date(f.timestamp).getTime() >= cutoff) }
+            })
+          }, 3000)
+        } catch {
+          // ignore malformed messages
+        }
       }
     }
 
+    connect()
+
     const timeouts = zeroTimeoutsRef.current
     return () => {
-      ws.close()
+      destroyed = true
+      if (reconnectTimerRef.current !== null) window.clearTimeout(reconnectTimerRef.current)
+      wsRef.current?.close()
       Object.values(timeouts).forEach(window.clearTimeout)
     }
   }, [])
