@@ -157,7 +157,7 @@ export default function RunControls({ team, competition, onRunsChanged }: Props)
             onClick={startAttempt}
             disabled={busy || startBlocked}
             title={startBlocked ? blockedReason : undefined}
-            className="px-3 py-1.5 text-xs font-medium bg-ev-orange text-white rounded-md hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="px-3 py-1.5 text-xs font-medium border border-ev-cyan text-ev-cyan rounded-md hover:bg-ev-cyan/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             Start Attempt {nextAttempt}
           </button>
@@ -176,7 +176,7 @@ export default function RunControls({ team, competition, onRunsChanged }: Props)
                   className={[
                     "px-2.5 py-1.5 text-xs font-medium rounded-md border transition-colors disabled:opacity-40",
                     o === "finished"
-                      ? "bg-ev-cyan text-white border-ev-cyan hover:bg-ev-blue"
+                      ? "border-ev-cyan text-ev-cyan hover:bg-ev-cyan/10"
                       : "border-ev-border text-slate-700 hover:border-red-400 hover:text-red-500",
                   ].join(" ")}
                 >
@@ -264,7 +264,7 @@ export default function RunControls({ team, competition, onRunsChanged }: Props)
             <button
               onClick={() => setShowPenalty(true)}
               disabled={!selectedRun}
-              className="text-xs px-2.5 py-1 rounded-md bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="text-xs px-2.5 py-1 rounded-md border border-red-500 text-red-500 hover:bg-red-500/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               + Penalty
             </button>
