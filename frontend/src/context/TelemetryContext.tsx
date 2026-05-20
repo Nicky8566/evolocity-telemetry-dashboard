@@ -14,18 +14,27 @@ interface TelemetryContextValue {
   connected: boolean
   boardData: BoardData
   alerts:    Alert[]
+  /** Bumped whenever a run or penalty event is broadcast. */
+  runsVersion:       number
+  /** Bumped whenever a penalty is broadcast. */
+  penaltiesVersion:  number
+  /** Map of competition_id → version. Bumped when that competition's leaderboard should refetch. */
+  leaderboardNudges: Record<number, number>
 }
 
 const TelemetryContext = createContext<TelemetryContextValue | null>(null)
 
 export function TelemetryProvider({ children }: { children: ReactNode }) {
-  const [connected, setConnected] = useState(false)
-  const [boardData, setBoardData] = useState<BoardData>({})
-  const [alerts, setAlerts]       = useState<Alert[]>([])
-  const zeroTimeoutsRef           = useRef<Record<string, number>>({})
-  const wsRef                     = useRef<WebSocket | null>(null)
-  const reconnectTimerRef         = useRef<number | null>(null)
-  const reconnectDelayRef         = useRef(1000)
+  const [connected, setConnected]                 = useState(false)
+  const [boardData, setBoardData]                 = useState<BoardData>({})
+  const [alerts, setAlerts]                       = useState<Alert[]>([])
+  const [runsVersion, setRunsVersion]             = useState(0)
+  const [penaltiesVersion, setPenaltiesVersion]   = useState(0)
+  const [leaderboardNudges, setLeaderboardNudges] = useState<Record<number, number>>({})
+  const zeroTimeoutsRef                           = useRef<Record<string, number>>({})
+  const wsRef                                     = useRef<WebSocket | null>(null)
+  const reconnectTimerRef                         = useRef<number | null>(null)
+  const reconnectDelayRef                         = useRef(1000)
 
   // Pre-populate charts with the last 5 minutes of stored data on first load
   useEffect(() => {
@@ -132,17 +141,37 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data as string)
-        if (msg.type !== "alert") return
-        const alert: Alert = msg.data
-        setAlerts((prev) => {
-          const idx = prev.findIndex((a) => a.id === alert.id)
-          if (idx >= 0) {
-            const updated = [...prev]
-            updated[idx] = alert
-            return updated
+        switch (msg.type) {
+          case "alert": {
+            const alert: Alert = msg.data
+            setAlerts((prev) => {
+              const idx = prev.findIndex((a) => a.id === alert.id)
+              if (idx >= 0) {
+                const updated = [...prev]
+                updated[idx] = alert
+                return updated
+              }
+              return [alert, ...prev]
+            })
+            break
           }
-          return [alert, ...prev]
-        })
+          case "run":
+            setRunsVersion((v) => v + 1)
+            break
+          case "penalty":
+          case "penalty-deleted":
+            setPenaltiesVersion((v) => v + 1)
+            break
+          case "leaderboard": {
+            const cid = msg.data?.competition_id
+            if (typeof cid === "number") {
+              setLeaderboardNudges((prev) => ({ ...prev, [cid]: (prev[cid] ?? 0) + 1 }))
+            }
+            break
+          }
+          default:
+            break
+        }
       } catch {
         // ignore malformed messages
       }
@@ -152,12 +181,13 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <TelemetryContext.Provider value={{ connected, boardData, alerts }}>
+    <TelemetryContext.Provider value={{ connected, boardData, alerts, runsVersion, penaltiesVersion, leaderboardNudges }}>
       {children}
     </TelemetryContext.Provider>
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useTelemetry() {
   const ctx = useContext(TelemetryContext)
   if (!ctx) throw new Error("useTelemetry must be used inside <TelemetryProvider>")

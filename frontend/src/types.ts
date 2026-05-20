@@ -18,11 +18,16 @@ export interface Team {
   joined_at:     string | null
 }
 
+export type EventType = "drag" | "gymkhana" | "endurance" | "efficiency"
+
+export const EVENT_TYPES: EventType[] = ["drag", "gymkhana", "endurance", "efficiency"]
+
 export interface Competition {
-  id:         number
-  name:       string
-  event_type: "drag" | "gymkhana" | "endurance"
-  created_at: string
+  id:          number
+  name:        string
+  event_type:  EventType        // legacy primary event (mirrors event_types[0])
+  event_types: EventType[]
+  created_at:  string
 }
 
 export interface CompetitionDetail extends Competition {
@@ -48,4 +53,67 @@ export interface Alert {
   started_at:  string
   ended_at:    string | null
   duration_ms: number | null
+}
+
+export type RunOutcome = "running" | "finished" | "dnf" | "dq" | "dns"
+export type MetricUnit = "seconds" | "wh"
+
+export interface Run {
+  id:              number
+  team_id:         number
+  competition_id:  number
+  event_type:      EventType
+  attempt_number:  number
+  started_at:      string
+  ended_at:        string | null
+  outcome:         RunOutcome
+  raw_metric:      number | null
+  raw_metric_unit: MetricUnit | null
+}
+
+export type PenaltyType =
+  | "cone_hit" | "false_start" | "failure_to_stop" | "course_cut" | "dangerous"
+  | "power_zone" | "dnf" | "dq" | "dns" | "other"
+
+export interface Penalty {
+  id:           number
+  run_id:       number
+  penalty_type: PenaltyType
+  value:        number
+  unit:         "seconds" | "points"
+  source:       "judge" | "auto"
+  note:         string | null
+  applied_at:   string
+  applied_by:   string | null
+}
+
+export interface LeaderboardEntry {
+  team_id:         number
+  team_name:       string
+  rank:            number | null
+  attempts:        number
+  raw_metric:      number | null
+  raw_metric_unit: MetricUnit | null
+  penalty_seconds: number
+  penalty_points:  number
+  adjusted:        number | null
+  adjusted_unit:   MetricUnit | null
+  points:          number
+  outcome:         RunOutcome
+}
+
+export interface OverallEntry {
+  team_id:   number
+  team_name: string
+  total:     number
+  rank:      number
+  per_event: Record<string, number>
+}
+
+export interface CompetitionLeaderboard {
+  competition_id:   number
+  competition_name: string
+  events:           EventType[]
+  event_scores:     Record<EventType, LeaderboardEntry[]>
+  overall:          OverallEntry[]
 }

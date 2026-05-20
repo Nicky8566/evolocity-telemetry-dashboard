@@ -4,6 +4,9 @@ import { receiveECUData, getECUData, getECUSerials, getECUStatus, deleteECU } fr
 import { getAllTeams, saveTeamInfo, deleteTeamInfo, getTeamByEcu, updateTeamEcu, getTeamByName, getTeamByTeamId, updateTeamPowerLimit } from '../controllers/teamController.js';
 import { getAllCompetitions, createNewCompetition, getCompetitionDetails, assignTeam, unassignTeam, getTeamAssignments } from '../controllers/competitionController.js';
 import { getAlertsHandler } from '../controllers/alertController.js';
+import { startRunHandler, stopRunHandler, listRunsHandler, getRunHandler } from '../controllers/runController.js';
+import { createPenaltyHandler, updatePenaltyHandler, deletePenaltyHandler, listPenaltiesHandler } from '../controllers/penaltyController.js';
+import { getLeaderboardHandler } from '../controllers/scoringController.js';
 
 const router = Router();
 
@@ -44,4 +47,18 @@ router.get('/competitions/:id', getCompetitionDetails);
 router.post('/competitions/create', createNewCompetition);
 router.post('/competitions/assign-team', assignTeam);
 router.post('/competitions/unassign-team', unassignTeam);
+router.get('/competitions/:id/leaderboard', getLeaderboardHandler);
+
+// Runs
+router.get('/runs', listRunsHandler);
+router.get('/runs/:id', getRunHandler);
+router.post('/runs/start', startRunHandler);
+router.post('/runs/:id/stop', stopRunHandler);
+
+// Penalties
+router.get('/penalties', listPenaltiesHandler);
+router.post('/penalties', createPenaltyHandler);
+router.patch('/penalties/:id', updatePenaltyHandler);
+router.delete('/penalties/:id', deletePenaltyHandler);
+
 export default router;

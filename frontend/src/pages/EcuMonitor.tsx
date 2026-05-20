@@ -145,8 +145,9 @@ export default function EcuMonitor() {
     try {
       const assignedTeam = teams.find((t) => t.ecu_serial === ecuSerial) ?? null
       const compAssign   = assignedTeam ? competitionMap.get(assignedTeam.id) ?? null : null
+      const eventType    = compAssign?.event_type as "drag" | "gymkhana" | "endurance" | "efficiency"
       const competition  = compAssign
-        ? { id: compAssign.competition_id, name: compAssign.competition_name, event_type: compAssign.event_type as "drag" | "gymkhana" | "endurance", created_at: "" }
+        ? { id: compAssign.competition_id, name: compAssign.competition_name, event_type: eventType, event_types: [eventType], created_at: "" }
         : null
 
       const [{ data: frames }, { data: alerts }] = await Promise.all([
@@ -168,8 +169,9 @@ export default function EcuMonitor() {
     const { ecu_serial } = deleteTarget
     const assignedTeam   = teams.find((t) => t.ecu_serial === ecu_serial) ?? null
     const compAssign     = assignedTeam ? competitionMap.get(assignedTeam.id) ?? null : null
+    const eventType      = compAssign?.event_type as "drag" | "gymkhana" | "endurance" | "efficiency"
     const competition    = compAssign
-      ? { id: compAssign.competition_id, name: compAssign.competition_name, event_type: compAssign.event_type as "drag" | "gymkhana" | "endurance", created_at: "" }
+      ? { id: compAssign.competition_id, name: compAssign.competition_name, event_type: eventType, event_types: [eventType], created_at: "" }
       : null
 
     if (exportCsv || exportPdf) {

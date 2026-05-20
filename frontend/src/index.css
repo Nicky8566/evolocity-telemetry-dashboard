@@ -13,6 +13,12 @@
   body {
     @apply bg-ev-bg text-slate-900;
   }
+
+  /* Force light color-scheme on form controls so native spinners/calendars
+     render with visible (dark) chrome even when the OS is in dark mode. */
+  input, select, textarea {
+    color-scheme: light;
+  }
 }
 
 /* Recharts brush — black handles and black time labels */

@@ -1,23 +1,45 @@
 import { db, persist } from './db.js';
 
-export function insertCompetition(name, event_type) {
+export function insertCompetition(name, event_types) {
+  // event_types: string[] (non-empty); the first is mirrored to competitions.event_type for back-compat.
+  const primary = event_types[0];
   db.run(
     'INSERT INTO competitions (name, event_type, created_at) VALUES (?, ?, ?)',
-    [name, event_type, new Date().toISOString()]
+    [name, primary, new Date().toISOString()]
   );
   const result = db.exec('SELECT last_insert_rowid() AS id');
   const competitionId = result[0].values[0][0];
+  for (const evt of event_types) {
+    db.run(
+      'INSERT INTO competition_events (competition_id, event_type) VALUES (?, ?)',
+      [competitionId, evt]
+    );
+  }
   persist();
   return competitionId;
+}
+
+function getEventsForCompetition(competition_id) {
+  const result = db.exec(
+    'SELECT event_type FROM competition_events WHERE competition_id = ? ORDER BY id ASC',
+    [competition_id]
+  );
+  if (result.length === 0) return [];
+  return result[0].values.map(row => row[0]);
 }
 
 export function getAllCompetitions() {
   const result = db.exec('SELECT * FROM competitions ORDER BY id ASC');
   if (result.length === 0) return [];
   const { columns, values } = result[0];
-  return values.map(row =>
-    Object.fromEntries(columns.map((col, i) => [col, row[i]]))
-  );
+  return values.map(row => {
+    const comp = Object.fromEntries(columns.map((col, i) => [col, row[i]]));
+    let events = getEventsForCompetition(comp.id);
+    // Back-compat: legacy rows have only competitions.event_type populated.
+    if (events.length === 0 && comp.event_type) events = [comp.event_type];
+    comp.event_types = events;
+    return comp;
+  });
 }
 
 export function getCompetitionById(id) {
@@ -27,6 +49,10 @@ export function getCompetitionById(id) {
   const comp = Object.fromEntries(
     compResult[0].columns.map((col, i) => [col, compResult[0].values[0][i]])
   );
+
+  let events = getEventsForCompetition(id);
+  if (events.length === 0 && comp.event_type) events = [comp.event_type];
+  comp.event_types = events;
 
   const teamsResult = db.exec(
     `SELECT t.*, ct.joined_at FROM teams t

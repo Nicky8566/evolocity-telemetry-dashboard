@@ -5,6 +5,7 @@ import {
   assignTeamToCompetition,
   unassignTeamFromCompetition,
 } from '../services/competitionService.js';
+import { EVENT_TYPES } from '../models/competitionModel.js';
 import { getTeamCompetitionAssignments } from '../database/competitionDb.js';
 
 export function getAllCompetitions(req, res) {
@@ -13,17 +14,25 @@ export function getAllCompetitions(req, res) {
 }
 
 export function createNewCompetition(req, res) {
-  const { name, event_type } = req.body;
+  const { name, event_type, event_types } = req.body;
   if (!name || name.trim() === '') {
     return res.status(400).json({ error: 'Competition name is required' });
   }
 
-  const validTypes = ['drag', 'gymkhana', 'endurance'];
-  if (!event_type || !validTypes.includes(event_type)) {
-    return res.status(400).json({ error: 'event_type must be drag, gymkhana, or endurance' });
+  // Accept either event_types[] (preferred) or single event_type (legacy).
+  const requested = Array.isArray(event_types) && event_types.length > 0
+    ? event_types
+    : (event_type ? [event_type] : []);
+  if (requested.length === 0) {
+    return res.status(400).json({ error: 'event_types[] (or event_type) is required' });
   }
+  const invalid = requested.filter(e => !EVENT_TYPES.includes(e));
+  if (invalid.length > 0) {
+    return res.status(400).json({ error: `Invalid event_types: ${invalid.join(', ')}. Allowed: ${EVENT_TYPES.join(', ')}` });
+  }
+  const deduped = [...new Set(requested)];
 
-  const result = createCompetition(name.trim(), event_type);
+  const result = createCompetition(name.trim(), deduped);
   if (result.error) {
     return res.status(409).json({ error: result.error });
   }

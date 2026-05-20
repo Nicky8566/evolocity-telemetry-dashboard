@@ -11,6 +11,7 @@ const EVENT_LABELS: Record<string, string> = {
   drag: "Drag Race",
   gymkhana: "Gymkhana",
   endurance: "Endurance",
+  efficiency: "Efficiency",
 };
 
 export default function Teams() {
@@ -257,8 +258,7 @@ export default function Teams() {
                           {competition.name}
                         </p>
                         <p className="text-xs text-slate-400">
-                          {EVENT_LABELS[competition.event_type] ??
-                            competition.event_type}
+                          {competition.event_types.map((e) => EVENT_LABELS[e] ?? e).join(" · ")}
                         </p>
                       </div>
                       <button

@@ -12,11 +12,20 @@ import { useTelemetry } from "../context/TelemetryContext";
 import type { CompetitionDetail, ECUFrame, Team } from "../types";
 import ConfirmUnassignModal from "../components/ui/ConfirmUnassignModal";
 import ExportMenu from "../components/ui/ExportMenu";
+import RunControls from "../components/ui/RunControls";
 
 const EVENT_COLOURS: Record<string, string> = {
-  drag:      "bg-ev-cyan/10 text-ev-cyan border-ev-cyan/30",
-  gymkhana:  "bg-purple-500/10 text-purple-400 border-purple-500/30",
-  endurance: "bg-ev-orange/10 text-ev-orange border-ev-orange/30",
+  drag:       "bg-ev-cyan/10 text-ev-cyan border-ev-cyan/30",
+  gymkhana:   "bg-purple-500/10 text-purple-400 border-purple-500/30",
+  endurance:  "bg-ev-orange/10 text-ev-orange border-ev-orange/30",
+  efficiency: "bg-emerald-500/10 text-emerald-500 border-emerald-500/30",
+};
+
+const EVENT_LABELS: Record<string, string> = {
+  drag:       "Drag Race",
+  gymkhana:   "Gymkhana",
+  endurance:  "Endurance",
+  efficiency: "Efficiency",
 };
 
 const POWER_LIMIT_MIN     = 0;
@@ -210,9 +219,13 @@ export default function Dashboard() {
                 {competition ? competition.name : "Dashboard"}
               </h1>
               {competition && (
-                <span className={`text-xs px-2 py-0.5 rounded-full border font-medium capitalize ${EVENT_COLOURS[competition.event_type] ?? ""}`}>
-                  {competition.event_type}
-                </span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {competition.event_types.map((evt) => (
+                    <span key={evt} className={`text-xs px-2 py-0.5 rounded-full border font-medium capitalize ${EVENT_COLOURS[evt] ?? ""}`}>
+                      {EVENT_LABELS[evt] ?? evt}
+                    </span>
+                  ))}
+                </div>
               )}
             </div>
             <p className="text-slate-400 text-sm mt-0.5">
@@ -238,6 +251,11 @@ export default function Dashboard() {
               <StatCard label="Power"   value={latestFrame?.avg_power?.toFixed(1)   ?? null} unit="W"  highlight={activePenalty} accentClass="border-t-ev-blue" />
               <StatCard label="Energy"  value={latestFrame?.avg_energy?.toFixed(5)  ?? null} unit="Wh" accentClass="border-t-green-500" />
             </div>
+
+            {/* Run controls — only when viewing a team inside a competition */}
+            {competition && (
+              <RunControls team={selectedTeam} competition={competition} />
+            )}
 
             {/* Power limit */}
             <div className="bg-ev-panel border border-ev-border rounded-xl p-5 flex flex-col gap-4 shadow-sm">
