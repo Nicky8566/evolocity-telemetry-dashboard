@@ -396,7 +396,7 @@ export default function Dashboard() {
       </div>
 
       {/* ── Team panel ───────────────────────────────────────────────── */}
-      <aside className="w-48 shrink-0 flex flex-col gap-4 order-last border-l border-ev-cyan/30 pl-6 sticky top-8 self-start h-[calc(100vh-4rem)]">
+      <aside className="w-48 shrink-0 flex flex-col gap-4 order-last border-l border-ev-cyan/30 pl-6 sticky top-[5.25rem] self-start h-[calc(100vh-7.25rem)]">
         <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Teams</p>
         <button onClick={() => setShowCreateTeam(true)} className="text-left px-3 py-2.5 rounded-lg border border-dashed border-ev-cyan/40 text-ev-cyan text-sm hover:bg-ev-cyan/5 transition-colors shrink-0">
           + Add Team

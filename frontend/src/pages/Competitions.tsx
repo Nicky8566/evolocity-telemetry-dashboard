@@ -167,7 +167,7 @@ export default function Competitions() {
       </div>
 
       {/* ── Competition sidebar ──────────────────────────────────────────── */}
-      <aside className="w-48 shrink-0 flex flex-col gap-4 order-last border-l border-ev-cyan/30 pl-6 sticky top-8 self-start h-[calc(100vh-4rem)]">
+      <aside className="w-48 shrink-0 flex flex-col gap-4 order-last border-l border-ev-cyan/30 pl-6 sticky top-[5.25rem] self-start h-[calc(100vh-7.25rem)]">
         <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Competitions</p>
         <button
           onClick={() => setShowCreate(true)}
