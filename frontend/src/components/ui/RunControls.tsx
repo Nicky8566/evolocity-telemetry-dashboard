@@ -149,7 +149,7 @@ export default function RunControls({ team, competition, onRunsChanged }: Props)
   }
 
   return (
-    <div className="bg-ev-panel border border-ev-border rounded-xl p-5 flex flex-col gap-4 shadow-sm">
+    <div className="bg-ev-panel border border-ev-border rounded-xl p-5 flex flex-col gap-4 shadow-sm h-96 min-h-0">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Run Control</p>
         <div className="flex flex-wrap gap-1 bg-slate-100 rounded-lg p-1">
@@ -219,57 +219,70 @@ export default function RunControls({ team, competition, onRunsChanged }: Props)
 
       {error && <p className="text-xs text-red-500">{error}</p>}
 
-      {runsForEvent.length > 0 && (
-        <div className="border-t border-ev-border pt-3">
-          <p className="text-xs text-slate-400 uppercase tracking-widest font-semibold mb-2">
-            Attempts ({EVENT_LABELS[event]}) — click to view its penalties
+      {/* Attempts + Penalties each get their own scrollable region and a fixed share
+          of the remaining card height, so the layout stays stable from zero to many attempts. */}
+      <div className="flex-1 min-h-0 grid grid-rows-2 gap-3">
+        <section className="border-t border-ev-border pt-3 flex flex-col min-h-0">
+          <p className="text-xs text-slate-400 uppercase tracking-widest font-semibold mb-2 shrink-0">
+            Attempts ({EVENT_LABELS[event]}){runsForEvent.length > 0 && " — click to view its penalties"}
           </p>
-          <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto">
-            {runsForEvent.map((r) => {
-              const isSelected = selectedRun?.id === r.id
-              return (
-                <button
-                  key={r.id}
-                  type="button"
-                  onClick={() => setSelectedRunId(r.id)}
-                  className={[
-                    "flex items-center justify-between text-sm px-2 py-1 rounded-md border transition-colors text-left",
-                    isSelected
-                      ? "bg-ev-cyan/10 border-ev-cyan/40"
-                      : "border-transparent hover:bg-slate-50",
-                  ].join(" ")}
-                >
-                  <span className="text-slate-600 font-medium">#{r.attempt_number}</span>
-                  <span className="tabular-nums text-slate-700">{formatMetric(r)}</span>
-                  <span className={[
-                    "text-xs px-2 py-0.5 rounded-full capitalize",
-                    r.outcome === "running"  ? "bg-amber-500/20 text-amber-600" :
-                    r.outcome === "finished" ? "bg-emerald-500/20 text-emerald-600" :
-                                               "bg-red-500/20 text-red-500",
-                  ].join(" ")}>{r.outcome}</span>
-                </button>
-              )
-            })}
+          <div className="flex-1 min-h-0 overflow-y-auto -mr-1 pr-1">
+            {runsForEvent.length === 0 ? (
+              <p className="text-xs text-slate-400">No attempts yet.</p>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                {runsForEvent.map((r) => {
+                  const isSelected = selectedRun?.id === r.id
+                  return (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => setSelectedRunId(r.id)}
+                      className={[
+                        "flex items-center justify-between text-sm px-2 py-1 rounded-md border transition-colors text-left",
+                        isSelected
+                          ? "bg-ev-cyan/10 border-ev-cyan/40"
+                          : "border-transparent hover:bg-slate-50",
+                      ].join(" ")}
+                    >
+                      <span className="text-slate-600 font-medium">#{r.attempt_number}</span>
+                      <span className="tabular-nums text-slate-700">{formatMetric(r)}</span>
+                      <span className={[
+                        "text-xs px-2 py-0.5 rounded-full capitalize",
+                        r.outcome === "running"  ? "bg-amber-500/20 text-amber-600" :
+                        r.outcome === "finished" ? "bg-emerald-500/20 text-emerald-600" :
+                                                   "bg-red-500/20 text-red-500",
+                      ].join(" ")}>{r.outcome}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        </section>
 
-      {selectedRun && (
-        <div className="border-t border-ev-border pt-3">
-          <div className="flex items-center justify-between mb-2">
+        <section className="border-t border-ev-border pt-3 flex flex-col min-h-0">
+          <div className="flex items-center justify-between mb-2 shrink-0">
             <p className="text-xs text-slate-400 uppercase tracking-widest font-semibold">
-              Penalties — attempt {selectedRun.attempt_number}
+              Penalties{selectedRun && ` — attempt ${selectedRun.attempt_number}`}
             </p>
             <button
               onClick={() => setShowPenalty(true)}
-              className="text-xs px-2.5 py-1 rounded-md bg-red-500 text-white hover:bg-red-600 transition-colors"
+              disabled={!selectedRun}
+              className="text-xs px-2.5 py-1 rounded-md bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               + Penalty
             </button>
           </div>
-          <PenaltyList penalties={penalties} onChange={() => { refreshPenalties(); onRunsChanged?.() }} />
-        </div>
-      )}
+          <div className="flex-1 min-h-0 overflow-y-auto -mr-1 pr-1">
+            {!selectedRun ? (
+              <p className="text-xs text-slate-400">Start an attempt to apply penalties.</p>
+            ) : (
+              <PenaltyList penalties={penalties} onChange={() => { refreshPenalties(); onRunsChanged?.() }} />
+            )}
+          </div>
+        </section>
+      </div>
 
       {showPenalty && selectedRun && (
         <PenaltyModal
