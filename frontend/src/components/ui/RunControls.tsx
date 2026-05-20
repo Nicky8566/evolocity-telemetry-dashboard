@@ -152,35 +152,41 @@ export default function RunControls({ team, competition, onRunsChanged }: Props)
     <div className="bg-ev-panel border border-ev-border rounded-xl p-5 flex flex-col gap-4 shadow-sm h-96 min-h-0">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Run Control</p>
-        <div className="flex flex-wrap gap-1 bg-slate-100 rounded-lg p-1">
-          {eventTypes.map((evt) => (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap gap-1 bg-slate-100 rounded-lg p-1">
+            {eventTypes.map((evt) => (
+              <button
+                key={evt}
+                onClick={() => setEvent(evt)}
+                disabled={busy}
+                className={[
+                  "px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
+                  event === evt ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700",
+                ].join(" ")}
+              >
+                {EVENT_LABELS[evt]}
+              </button>
+            ))}
+          </div>
+          {!activeRun && (
             <button
-              key={evt}
-              onClick={() => setEvent(evt)}
-              disabled={busy}
-              className={[
-                "px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
-                event === evt ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700",
-              ].join(" ")}
+              onClick={startAttempt}
+              disabled={busy || startBlocked}
+              title={startBlocked ? blockedReason : undefined}
+              className="px-3 py-1.5 text-xs font-medium bg-ev-orange text-white rounded-md hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {EVENT_LABELS[evt]}
+              Start Attempt {nextAttempt}
             </button>
-          ))}
+          )}
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-xl font-bold text-slate-900 tabular-nums">
-            {activeRun ? `Attempt ${activeRun.attempt_number} live` : `Attempt ${nextAttempt} ready`}
+      {activeRun && (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-slate-400">
+            Attempt {activeRun.attempt_number} live · started {new Date(activeRun.started_at).toLocaleTimeString()}
           </p>
-          {activeRun && (
-            <p className="text-xs text-slate-400 mt-0.5">Started {new Date(activeRun.started_at).toLocaleTimeString()}</p>
-          )}
-        </div>
-
-        {activeRun ? (
-          <div className="flex flex-wrap gap-1.5 sm:justify-end">
+          <div className="flex flex-wrap gap-1.5">
             {(["finished", "dnf", "dq", "dns"] as const).map((o) => (
               <button
                 key={o}
@@ -198,17 +204,8 @@ export default function RunControls({ team, competition, onRunsChanged }: Props)
               </button>
             ))}
           </div>
-        ) : (
-          <button
-            onClick={startAttempt}
-            disabled={busy || startBlocked}
-            title={startBlocked ? blockedReason : undefined}
-            className="px-4 py-2 text-sm bg-ev-orange text-white rounded-lg hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed self-start sm:self-auto"
-          >
-            Start Attempt {nextAttempt}
-          </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {!activeRun && noEcu && (
         <p className="text-xs text-amber-600">This team has no ECU assigned. Assign one in <span className="font-semibold">Teams</span> before starting a run.</p>
@@ -219,12 +216,12 @@ export default function RunControls({ team, competition, onRunsChanged }: Props)
 
       {error && <p className="text-xs text-red-500">{error}</p>}
 
-      {/* Attempts + Penalties each get their own scrollable region and a fixed share
-          of the remaining card height, so the layout stays stable from zero to many attempts. */}
-      <div className="flex-1 min-h-0 grid grid-rows-2 gap-3">
+      {/* Attempts + Penalties sit side by side, each with its own scrollable region,
+          so the layout stays stable from zero to many attempts. */}
+      <div className="flex-1 min-h-0 grid grid-cols-2 gap-3">
         <section className="border-t border-ev-border pt-3 flex flex-col min-h-0">
           <p className="text-xs text-slate-400 uppercase tracking-widest font-semibold mb-2 shrink-0">
-            Attempts ({EVENT_LABELS[event]}){runsForEvent.length > 0 && " — click to view its penalties"}
+            Attempts
           </p>
           <div className="flex-1 min-h-0 overflow-y-auto -mr-1 pr-1">
             {runsForEvent.length === 0 ? (
@@ -264,7 +261,7 @@ export default function RunControls({ team, competition, onRunsChanged }: Props)
         <section className="border-t border-ev-border pt-3 flex flex-col min-h-0">
           <div className="flex items-center justify-between mb-2 shrink-0">
             <p className="text-xs text-slate-400 uppercase tracking-widest font-semibold">
-              Penalties{selectedRun && ` — attempt ${selectedRun.attempt_number}`}
+              Penalties
             </p>
             <button
               onClick={() => setShowPenalty(true)}
