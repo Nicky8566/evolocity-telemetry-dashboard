@@ -36,7 +36,13 @@ export default function AlertCard({ alert, teams }: Props) {
     <div className={`rounded-lg border px-2.5 py-1.5 flex flex-col gap-1 transition-colors ${containerClass}`}>
       <div className="flex items-center justify-between gap-2">
         <p className="text-slate-900 font-semibold text-xs leading-tight truncate">
-          {team ? team.team_name : `ESP-${alert.ecu_serial}`}
+          {team ? (
+            <>
+              {team.team_name} <span className="font-normal text-[10px] text-slate-400">· ESP-{alert.ecu_serial}</span>
+            </>
+          ) : (
+            `ESP-${alert.ecu_serial}`
+          )}
         </p>
         <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full shrink-0 ${badgeClass} ${isActive ? "animate-pulse" : ""}`}>
           {isPenalty ? "PENALTY" : "WARNING"}
