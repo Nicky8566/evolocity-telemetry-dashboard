@@ -6,6 +6,7 @@ import {
   unassignTeamFromCompetition,
 } from '../services/competitionService.js';
 import { EVENT_TYPES } from '../models/competitionModel.js';
+import { getTeamCompetitionAssignments } from '../database/competitionDb.js';
 
 export function getAllCompetitions(req, res) {
   const rows = getCompetitions();
@@ -57,6 +58,11 @@ export function assignTeam(req, res) {
     return res.status(409).json({ error: 'Team is already assigned to this competition' });
   }
   res.json({ message: 'Team assigned to competition' });
+}
+
+export function getTeamAssignments(req, res) {
+  const assignments = getTeamCompetitionAssignments();
+  res.json({ assignments });
 }
 
 export function unassignTeam(req, res) {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { competitionsApi } from "../api/competitions";
 import { ecuApi } from "../api/ecu";
@@ -11,6 +11,7 @@ import StatCard from "../components/ui/StatCard";
 import { useTelemetry } from "../context/TelemetryContext";
 import type { CompetitionDetail, ECUFrame, Team } from "../types";
 import ConfirmUnassignModal from "../components/ui/ConfirmUnassignModal";
+import ExportMenu from "../components/ui/ExportMenu";
 import RunControls from "../components/ui/RunControls";
 
 const EVENT_COLOURS: Record<string, string> = {
@@ -55,8 +56,13 @@ export default function Dashboard() {
   const [tab, setTab]                   = useState<"live" | "history">("live");
   const [historyFrames, setHistoryFrames] = useState<ECUFrame[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError]     = useState(false);
   const [dateFrom, setDateFrom]         = useState("");
   const [dateTo, setDateTo]             = useState("");
+
+  // Ref so loadTeams can read current selectedTeam without it being a dependency
+  const selectedTeamRef = useRef(selectedTeam);
+  useEffect(() => { selectedTeamRef.current = selectedTeam; }, [selectedTeam]);
 
   const loadTeams = useCallback(() => {
     if (id) {
@@ -65,13 +71,35 @@ export default function Dashboard() {
           setCompetition(data);
           setAllTeams(data.teams);
           setRegisteredTeams(teamRows);
-          if (data.teams.length > 0 && !selectedTeam) setSelectedTeam(data.teams[0]);
+          const current = selectedTeamRef.current;
+          if (data.teams.length > 0 && !current) {
+            setSelectedTeam(data.teams[0]);
+          } else if (current) {
+            const refreshed = data.teams.find((t) => t.id === current.id);
+            if (refreshed && (
+              refreshed.ecu_serial  !== current.ecu_serial  ||
+              refreshed.power_limit !== current.power_limit ||
+              refreshed.team_name   !== current.team_name
+            )) setSelectedTeam(refreshed);
+          }
         })
         .catch(console.error);
     } else {
-      teamsApi.list().then(({ data }) => { setAllTeams(data); setRegisteredTeams(data); }).catch(console.error);
+      teamsApi.list().then(({ data }) => {
+        setAllTeams(data);
+        setRegisteredTeams(data);
+        const current = selectedTeamRef.current;
+        if (current) {
+          const refreshed = data.find((t) => t.id === current.id);
+          if (refreshed && (
+            refreshed.ecu_serial  !== current.ecu_serial  ||
+            refreshed.power_limit !== current.power_limit ||
+            refreshed.team_name   !== current.team_name
+          )) setSelectedTeam(refreshed);
+        }
+      }).catch(console.error);
     }
-  }, [id, selectedTeam]);
+  }, [id]);
 
   useEffect(() => { loadTeams(); }, [loadTeams]);
 
@@ -82,6 +110,7 @@ export default function Dashboard() {
     setPowerLimitStatus("idle");
     setTab("live");
     setHistoryFrames([]);
+    setHistoryError(false);
     setDateFrom("");
     setDateTo("");
   }, [selectedTeam?.id]);
@@ -90,13 +119,14 @@ export default function Dashboard() {
   useEffect(() => {
     if (tab !== "history" || !selectedTeam?.ecu_serial) return;
     setHistoryLoading(true);
+    setHistoryError(false);
     ecuApi
       .history({
         ecu_serial: selectedTeam.ecu_serial,
         from: selectedTeam.joined_at ?? competition?.created_at,
       })
       .then(({ data }) => setHistoryFrames(data))
-      .catch(console.error)
+      .catch(() => setHistoryError(true))
       .finally(() => setHistoryLoading(false));
   }, [tab, selectedTeam?.id, competition?.id]);
 
@@ -275,7 +305,14 @@ export default function Dashboard() {
                   </button>
                 </div>
 
-                {/* Date range filter — live tab only */}
+                {/* Controls — right side of tab bar */}
+                {tab === "history" && selectedTeam && (
+                  <ExportMenu
+                    frames={historyFrames}
+                    team={selectedTeam}
+                    competition={competition}
+                  />
+                )}
                 {tab === "live" && (
                   <div className="flex items-end gap-2">
                     <div className="flex flex-col gap-1">
@@ -316,6 +353,8 @@ export default function Dashboard() {
 
                 {tab === "history" && historyLoading ? (
                   <div className="flex items-center justify-center h-48 text-slate-400 text-sm">Loading history...</div>
+                ) : tab === "history" && historyError ? (
+                  <div className="flex items-center justify-center h-48 text-red-400 text-sm">Failed to load history — check your connection and try again.</div>
                 ) : displayFrames.length === 0 ? (
                   <div className="flex items-center justify-center h-48 text-slate-400 text-sm opacity-40">
                     {tab === "live" ? "Waiting for live data..." : "No data for this team in this competition yet"}
@@ -364,7 +403,7 @@ export default function Dashboard() {
               const bid    = team.ecu_serial ? `ECU-${team.ecu_serial}` : null;
               const tframes = bid ? (boardData[bid] ?? []) : [];
               const last   = tframes.at(-1);
-              const isLive = last && last.avg_voltage > 0;
+              const isLive = last && last.avg_voltage > 0 && (Date.now() - new Date(last.timestamp).getTime()) < 5000;
               const isDead = tframes.length > 0 && !isLive;
 
               return (

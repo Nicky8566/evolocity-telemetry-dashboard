@@ -3,10 +3,11 @@ import { useTelemetry } from "../../context/TelemetryContext";
 import logo from "../../assets/logo.png";
 
 const links = [
-  { to: "/", label: "Competitions" },
-  { to: "/teams", label: "Teams" },
+  { to: "/",            label: "Competitions" },
+  { to: "/teams",       label: "Teams" },
+  { to: "/esps",        label: "ESPs" },
   { to: "/leaderboard", label: "Leaderboard" },
-  { to: "/alerts", label: "Alerts" },
+  { to: "/alerts",      label: "Alerts" },
 ];
 
 export default function Navbar() {
