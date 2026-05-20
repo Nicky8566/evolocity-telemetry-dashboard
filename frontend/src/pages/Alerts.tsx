@@ -61,7 +61,7 @@ export default function Alerts() {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-white">Alerts</h2>
-        <p className="text-slate-400 text-sm mt-0.5">Power breach incidents across all boards</p>
+        <p className="text-slate-400 text-sm mt-0.5">Power and current breach incidents across all boards</p>
       </div>
 
       {/* Filters */}
@@ -126,7 +126,7 @@ export default function Alerts() {
         ) : visibleAlerts.length === 0 ? (
           <div className="bg-ev-panel border border-ev-border rounded-xl p-8 text-center">
             <p className="text-slate-400 text-sm">No alerts found</p>
-            <p className="text-slate-600 text-xs mt-1">Power breach incidents will appear here</p>
+            <p className="text-slate-600 text-xs mt-1">Power and current breach incidents will appear here</p>
           </div>
         ) : (
           visibleAlerts.map((alert) => (

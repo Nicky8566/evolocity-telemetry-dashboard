@@ -11,4 +11,6 @@ export const teamsApi = {
   delete:    (id: number) => del<{ message: string }>(`/teams/${id}`),
   updatePowerLimit: (id: number, power_limit: number) =>
     post<{ data: { id: number; power_limit: number } }>("/teams/update/power_limit", { id, power_limit }),
+  updateCurrentLimit: (id: number, current_limit: number) =>
+    post<{ data: { id: number; current_limit: number } }>("/teams/update/current_limit", { id, current_limit }),
 }
