@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 import requests
 
 BACKEND_URL = "http://localhost:3001/api/data"
-ECU_SERIAL  = 67
+ECU_SERIAL  = 12345
 INTERVAL    = 0.1    # 10Hz
 NUM_SAMPLES = 10
 
@@ -42,6 +42,7 @@ def build_frame() -> dict:
         round((v / 1000) * (i / 1000), 4)
         for v, i in zip(v_samples, i_samples)
     ]
+    avg_power = round(sum(p_samples) / len(p_samples), 4)
 
     return {
         "ecu_serial":      ECU_SERIAL,
@@ -49,6 +50,7 @@ def build_frame() -> dict:
         "voltage_samples": v_samples,
         "current_samples": i_samples,
         "power_samples":   p_samples,
+        "avg_power":       avg_power,
     }
 
 
@@ -59,7 +61,7 @@ def send_frame():
         response_frame = resp.json().get("frame", {})
         v = response_frame.get("avg_voltage", 0)
         i = response_frame.get("avg_current", 0)
-        p = v * i
+        p = response_frame.get("avg_power", 0)
         print(
             f"V={v:5.1f}V  "
             f"I={i:5.3f}A  "

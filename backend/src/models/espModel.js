@@ -6,10 +6,10 @@ export const ecuSchema = {
   timestamp:       'TEXT NOT NULL',
   voltage_samples: 'TEXT NOT NULL',   // JSON array of 10 raw ADC readings in millivolts
   current_samples: 'TEXT',            // JSON array of 10 raw ADC readings in milliamps
-  power_samples:   'TEXT',            // JSON array of 10 power readings in watts (calculated by ESP32)
+  power_samples:   'TEXT',            // optional JSON array of 10 power readings in watts from ESP32
   avg_voltage:     'REAL NOT NULL',   // scaled voltage: V_real = raw_mv / 1000
   avg_current:     'REAL',
-  avg_power:       'REAL',            // average of power_samples in watts
+  avg_power:       'REAL',            // average power in watts sent by ESP32
   avg_energy:      'REAL',            // cumulative energy in watt-hours
   penalty:         'INTEGER DEFAULT 0',
   recorded_at:     'TEXT NOT NULL',   // server-side ISO timestamp
