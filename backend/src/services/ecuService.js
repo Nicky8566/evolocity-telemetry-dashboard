@@ -30,13 +30,20 @@ function getPowerLimit(ecu_serial) {
 }
 
 export function processECUFrame(payload) {
-  const { ecu_serial, timestamp, voltage_samples, current_samples, power_samples, avg_power } = payload;
+  const { ecu_serial, voltage_samples, current_samples, power_samples } = payload;
+  // ESP sends uptime ms — use server wall-clock time instead
+  const timestamp = typeof payload.timestamp === 'number'
+    ? new Date().toISOString()
+    : payload.timestamp;
 
   const scaled_voltage = voltage_samples.map(scaleVoltage);
   const avg_voltage    = scaled_voltage.reduce((s, v) => s + v, 0) / scaled_voltage.length;
   const scaled_current = current_samples.map(scaleCurrent);
   const avg_current    = scaled_current.reduce((s, v) => s + v, 0) / scaled_current.length;
-  const avg_energy     = avg_power * FRAME_DURATION_HOURS; // Wh delta for this frame
+  const avg_power      = power_samples
+    ? power_samples.reduce((s, p) => s + p, 0) / power_samples.length
+    : avg_voltage * avg_current;
+  const avg_energy     = avg_power * FRAME_DURATION_HOURS;
 
   const powerLimit   = getPowerLimit(ecu_serial);
   const overLimit    = avg_power >= powerLimit;

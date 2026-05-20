@@ -7,17 +7,17 @@ export function receiveECUData(req, res) {
   console.log('[ECU] payload:', JSON.stringify(req.body, null, 2));
   const payload = req.body;
 
-  if (!payload.ecu_serial || !payload.timestamp || !Array.isArray(payload.voltage_samples) || !Array.isArray(payload.current_samples) || typeof payload.avg_power !== 'number') {
-    return res.status(400).json({ error: 'Missing required fields: ecu_serial, timestamp, voltage_samples, current_samples, avg_power' });
+  if (!payload.ecu_serial || !payload.timestamp || !Array.isArray(payload.voltage_samples) || !Array.isArray(payload.current_samples)) {
+    return res.status(400).json({ error: 'Missing required fields: ecu_serial, timestamp, voltage_samples, current_samples' });
   }
 
   if (payload.voltage_samples.length !== 10 || payload.current_samples.length !== 10) {
     return res.status(400).json({ error: 'voltage_samples and current_samples must each contain exactly 10 readings' });
   }
 
-  if (!Number.isFinite(payload.avg_power)) {
-    return res.status(400).json({ error: 'avg_power must be a finite number' });
-  }
+  // if (!Number.isFinite(payload.avg_power)) {
+  //   return res.status(400).json({ error: 'avg_power must be a finite number' });
+  // }
 
   if (payload.power_samples != null && (!Array.isArray(payload.power_samples) || payload.power_samples.length !== 10)) {
     return res.status(400).json({ error: 'power_samples must contain exactly 10 readings when provided' });

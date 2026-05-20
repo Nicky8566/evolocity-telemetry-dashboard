@@ -37,12 +37,7 @@ def build_frame() -> dict:
     v_samples = voltage_samples_mv()
     i_samples = current_samples_ma()
 
-    # power_samples: P = V * I, scaling both to real units first
-    p_samples = [
-        round((v / 1000) * (i / 1000), 4)
-        for v, i in zip(v_samples, i_samples)
-    ]
-    avg_power = round(sum(p_samples) / len(p_samples), 4)
+    p_samples = [round((v / 1000) * (i / 1000), 4) for v, i in zip(v_samples, i_samples)]
 
     return {
         "ecu_serial":      ECU_SERIAL,
@@ -50,7 +45,6 @@ def build_frame() -> dict:
         "voltage_samples": v_samples,
         "current_samples": i_samples,
         "power_samples":   p_samples,
-        "avg_power":       avg_power,
     }
 
 
