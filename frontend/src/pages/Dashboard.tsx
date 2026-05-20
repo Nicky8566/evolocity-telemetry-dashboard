@@ -379,7 +379,7 @@ export default function Dashboard() {
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Events</p>
                   {teamAlerts.length > 0 && (
-                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-500/20 text-red-400">{teamAlerts.length}</span>
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">{teamAlerts.length}</span>
                   )}
                 </div>
                 <div className="flex flex-col gap-2 overflow-y-auto flex-1 min-h-0">
