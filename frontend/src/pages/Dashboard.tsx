@@ -396,12 +396,12 @@ export default function Dashboard() {
       </div>
 
       {/* ── Team panel ───────────────────────────────────────────────── */}
-      <aside className="w-48 shrink-0 flex flex-col gap-4 order-last border-l border-ev-cyan/30 pl-6">
+      <aside className="w-48 shrink-0 flex flex-col gap-4 order-last border-l border-ev-cyan/30 pl-6 sticky top-8 self-start h-[calc(100vh-4rem)]">
         <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Teams</p>
-        <div className="flex flex-col gap-1 overflow-y-auto flex-1">
-          <button onClick={() => setShowCreateTeam(true)} className="text-left px-3 py-2.5 rounded-lg border border-dashed border-ev-cyan/40 text-ev-cyan text-sm hover:bg-ev-cyan/5 transition-colors">
-            + Add Team
-          </button>
+        <button onClick={() => setShowCreateTeam(true)} className="text-left px-3 py-2.5 rounded-lg border border-dashed border-ev-cyan/40 text-ev-cyan text-sm hover:bg-ev-cyan/5 transition-colors shrink-0">
+          + Add Team
+        </button>
+        <div className="scrollbar-hover flex flex-col gap-1 overflow-y-auto flex-1 min-h-0">
           {teams.length === 0 ? (
             <p className="text-slate-500 text-xs px-3 pt-1">No teams registered</p>
           ) : (
