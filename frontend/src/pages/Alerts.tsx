@@ -60,7 +60,7 @@ export default function Alerts() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-white">Alerts</h2>
+        <h2 className="text-2xl font-bold text-slate-900">Alerts</h2>
         <p className="text-slate-400 text-sm mt-0.5">Power breach incidents across all boards</p>
       </div>
 
@@ -71,7 +71,7 @@ export default function Alerts() {
           <select
             value={selectedCompetition}
             onChange={(e) => { setSelectedCompetition(e.target.value); setSelectedTeam("all") }}
-            className="bg-ev-panel border border-ev-border rounded-lg px-3 py-2 text-sm text-white"
+            className="bg-ev-panel border border-ev-border rounded-lg px-3 py-2 text-sm text-slate-600"
           >
             <option value="all">All competitions</option>
             {competitions.map((c) => (
@@ -85,7 +85,7 @@ export default function Alerts() {
           <select
             value={selectedTeam}
             onChange={(e) => setSelectedTeam(e.target.value)}
-            className="bg-ev-panel border border-ev-border rounded-lg px-3 py-2 text-sm text-white"
+            className="bg-ev-panel border border-ev-border rounded-lg px-3 py-2 text-sm text-slate-600"
           >
             <option value="all">All teams</option>
             {filteredTeams.map((t) => (
@@ -99,7 +99,7 @@ export default function Alerts() {
             <label className="text-xs text-transparent uppercase tracking-widest">Clear</label>
             <button
               onClick={() => { setSelectedCompetition("all"); setSelectedTeam("all") }}
-              className="px-3 py-2 text-sm text-slate-400 border border-ev-border rounded-lg hover:text-white hover:border-slate-500 transition-colors"
+              className="px-3 py-2 text-sm text-slate-400 border border-ev-border rounded-lg hover:border-ev-cyan hover:text-ev-cyan transition-colors"
             >
               Clear filters
             </button>

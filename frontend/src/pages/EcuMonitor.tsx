@@ -21,6 +21,7 @@ interface CompetitionAssignment {
   competition_id:   number
   competition_name: string
   event_type:       string
+  event_types:      string[]
 }
 
 type Status = "live" | "offline" | "no-session"
@@ -43,6 +44,7 @@ const EVENT_COLOURS: Record<string, string> = {
   drag:      "bg-ev-cyan/10 text-ev-cyan border-ev-cyan/30",
   gymkhana:  "bg-purple-500/10 text-purple-400 border-purple-500/30",
   endurance: "bg-ev-orange/10 text-ev-orange border-ev-orange/30",
+  efficiency: "bg-green-500/10 text-green-500 border-green-500/30",
 }
 
 function timeAgo(iso: string): string {
@@ -367,11 +369,15 @@ export default function EcuMonitor() {
                   ) : (
                     compAssigns.map((ca) => (
                       <div key={ca.competition_id} className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5 min-w-0">
+                        <div className="flex flex-col gap-0.5 min-w-0">
                           <span className="text-sm font-medium text-slate-900 truncate">{ca.competition_name}</span>
-                          <span className={`text-xs px-1.5 py-0.5 rounded-full border capitalize font-medium shrink-0 ${EVENT_COLOURS[ca.event_type] ?? ""}`}>
-                            {ca.event_type}
-                          </span>
+                          <div className="flex flex-wrap gap-1">
+                            {(ca.event_types.length > 0 ? ca.event_types : [ca.event_type]).map((et) => (
+                              <span key={et} className={`text-xs px-1.5 py-0.5 rounded-full border capitalize font-medium ${EVENT_COLOURS[et] ?? ""}`}>
+                                {et}
+                              </span>
+                            ))}
+                          </div>
                         </div>
                         <Link
                           to={`/competitions/${ca.competition_id}`}

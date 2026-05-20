@@ -93,13 +93,22 @@ export function removeTeamFromCompetition(competition_id, team_id) {
 
 export function getTeamCompetitionAssignments() {
   const result = db.exec(`
-    SELECT ct.team_id, c.id AS competition_id, c.name AS competition_name, c.event_type
+    SELECT ct.team_id, c.id AS competition_id, c.name AS competition_name, c.event_type,
+           GROUP_CONCAT(ce.event_type, ',') AS event_types_concat
     FROM competition_teams ct
     JOIN competitions c ON ct.competition_id = c.id
+    LEFT JOIN competition_events ce ON ce.competition_id = c.id
+    GROUP BY ct.team_id, c.id
   `);
   if (result.length === 0) return [];
   const { columns, values } = result[0];
-  return values.map(row => Object.fromEntries(columns.map((col, i) => [col, row[i]])));
+  return values.map(row => {
+    const obj = Object.fromEntries(columns.map((col, i) => [col, row[i]]));
+    const concat = obj.event_types_concat;
+    obj.event_types = concat ? concat.split(',') : (obj.event_type ? [obj.event_type] : []);
+    delete obj.event_types_concat;
+    return obj;
+  });
 }
 
 export function competitionNameExists(name) {
