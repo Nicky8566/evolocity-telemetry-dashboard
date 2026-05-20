@@ -33,13 +33,37 @@ function formatMetric(run: Run) {
   return `${run.raw_metric.toFixed(2)} s`
 }
 
+// Same liveness rule the team sidebar uses (Dashboard.tsx): non-zero voltage in the last 5s.
+const LIVE_WINDOW_MS = 5000
+
 export default function RunControls({ team, competition, onRunsChanged }: Props) {
-  const { runsVersion, penaltiesVersion } = useTelemetry()
+  const { runsVersion, penaltiesVersion, boardData } = useTelemetry()
   const eventTypes  = competition.event_types
   const [event, setEvent] = useState<EventType>(eventTypes[0])
   const [runs, setRuns]   = useState<Run[]>([])
   const [busy, setBusy]   = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [now, setNow]     = useState(() => Date.now())
+
+  // Tick once per second so the live-frame staleness check re-evaluates without telemetry.
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(t)
+  }, [])
+
+  const ecuLive = useMemo(() => {
+    if (team.ecu_serial == null) return false
+    const frames = boardData[`ECU-${team.ecu_serial}`] ?? []
+    const last = frames.at(-1)
+    if (!last) return false
+    return last.avg_voltage > 0 && now - new Date(last.timestamp).getTime() < LIVE_WINDOW_MS
+  }, [boardData, team.ecu_serial, now])
+
+  const noEcu        = team.ecu_serial == null
+  const startBlocked = noEcu || !ecuLive
+  const blockedReason = noEcu
+    ? "Assign an ECU to this team before starting a run."
+    : `ECU ${team.ecu_serial} is offline. Wait for telemetry before starting a run.`
 
   // Keep event selection in sync if the competition's events change.
   useEffect(() => {
@@ -179,8 +203,8 @@ export default function RunControls({ team, competition, onRunsChanged }: Props)
         ) : (
           <button
             onClick={startAttempt}
-            disabled={busy || team.ecu_serial == null}
-            title={team.ecu_serial == null ? "Assign an ECU to this team before starting a run." : undefined}
+            disabled={busy || startBlocked}
+            title={startBlocked ? blockedReason : undefined}
             className="px-4 py-2 text-sm bg-ev-orange text-white rounded-lg hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Start Attempt {nextAttempt}
@@ -188,8 +212,11 @@ export default function RunControls({ team, competition, onRunsChanged }: Props)
         )}
       </div>
 
-      {!activeRun && team.ecu_serial == null && (
-        <p className="text-xs text-amber-600">This team has no ECU assigned — assign one in <span className="font-semibold">Teams</span> before starting a run.</p>
+      {!activeRun && noEcu && (
+        <p className="text-xs text-amber-600">This team has no ECU assigned. Assign one in <span className="font-semibold">Teams</span> before starting a run.</p>
+      )}
+      {!activeRun && !noEcu && !ecuLive && (
+        <p className="text-xs text-amber-600">ECU {team.ecu_serial} is offline. Wait for telemetry before starting a run.</p>
       )}
 
       {error && <p className="text-xs text-red-500">{error}</p>}
