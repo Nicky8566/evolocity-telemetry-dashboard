@@ -58,7 +58,7 @@ export default function EcuMonitor() {
   const { boardData }                         = useTelemetry()
   const [devices, setDevices]                 = useState<EcuDevice[]>([])
   const [teams, setTeams]                     = useState<Team[]>([])
-  const [competitionMap, setCompetitionMap]   = useState<Map<number, CompetitionAssignment>>(new Map())
+  const [competitionMap, setCompetitionMap]   = useState<Map<number, CompetitionAssignment[]>>(new Map())
   const [loading, setLoading]                 = useState(true)
   const [assigning, setAssigning]             = useState<number | null>(null)
   const [exportingEsp, setExportingEsp]       = useState<number | null>(null)
@@ -79,8 +79,8 @@ export default function EcuMonitor() {
       .then(([{ devices: devs }, { data: teamList }, { assignments }]) => {
         setDevices(devs)
         setTeams(teamList)
-        const map = new Map<number, CompetitionAssignment>()
-        assignments.forEach((a) => map.set(a.team_id, a))
+        const map = new Map<number, CompetitionAssignment[]>()
+        assignments.forEach((a) => map.set(a.team_id, [...(map.get(a.team_id) ?? []), a]))
         setCompetitionMap(map)
       })
       .catch(console.error)
@@ -130,8 +130,8 @@ export default function EcuMonitor() {
         competitionsApi.teamAssignments(),
       ])
       setTeams(updatedTeams)
-      const map = new Map<number, CompetitionAssignment>()
-      assignments.forEach((a) => map.set(a.team_id, a))
+      const map = new Map<number, CompetitionAssignment[]>()
+      assignments.forEach((a) => map.set(a.team_id, [...(map.get(a.team_id) ?? []), a]))
       setCompetitionMap(map)
     } catch (err) {
       console.error(err)
@@ -144,7 +144,7 @@ export default function EcuMonitor() {
     setExportingEsp(ecuSerial)
     try {
       const assignedTeam = teams.find((t) => t.ecu_serial === ecuSerial) ?? null
-      const compAssign   = assignedTeam ? competitionMap.get(assignedTeam.id) ?? null : null
+      const compAssign   = assignedTeam ? (competitionMap.get(assignedTeam.id) ?? [])[0] ?? null : null
       const eventType    = compAssign?.event_type as "drag" | "gymkhana" | "endurance" | "efficiency"
       const competition  = compAssign
         ? { id: compAssign.competition_id, name: compAssign.competition_name, event_type: eventType, event_types: [eventType], created_at: "" }
@@ -168,7 +168,7 @@ export default function EcuMonitor() {
     if (!deleteTarget) return
     const { ecu_serial } = deleteTarget
     const assignedTeam   = teams.find((t) => t.ecu_serial === ecu_serial) ?? null
-    const compAssign     = assignedTeam ? competitionMap.get(assignedTeam.id) ?? null : null
+    const compAssign     = assignedTeam ? (competitionMap.get(assignedTeam.id) ?? [])[0] ?? null : null
     const eventType      = compAssign?.event_type as "drag" | "gymkhana" | "endurance" | "efficiency"
     const competition    = compAssign
       ? { id: compAssign.competition_id, name: compAssign.competition_name, event_type: eventType, event_types: [eventType], created_at: "" }
@@ -307,14 +307,14 @@ export default function EcuMonitor() {
             const status        = getStatus(ecu_serial)
             const live          = liveData[ecu_serial]
             const assignedTeam  = teams.find((t) => t.ecu_serial === ecu_serial) ?? null
-            const compAssign    = assignedTeam ? competitionMap.get(assignedTeam.id) ?? null : null
+            const compAssigns   = assignedTeam ? competitionMap.get(assignedTeam.id) ?? [] : []
             const busy          = assigning === ecu_serial
             const exporting     = exportingEsp === ecu_serial
             const lastSeen      = live?.last ? timeAgo(live.last.timestamp) : timeAgo(last_recorded_at)
             const isOfflineOrNoSession = status !== "live"
 
             return (
-              <div key={ecu_serial} className={`bg-ev-panel border-2 rounded-xl p-5 flex flex-col gap-4 transition-colors ${status === "live" ? "border-green-400" : "border-ev-border shadow-sm"}`}>
+              <div key={ecu_serial} className={`bg-ev-panel border-2 rounded-xl p-5 flex flex-col gap-4 transition-colors ${status === "live" ? "border-green-400" : status === "offline" ? "border-red-400" : "border-ev-border shadow-sm"}`}>
 
                 {/* Card header */}
                 <div className="flex items-center justify-between">
@@ -358,27 +358,29 @@ export default function EcuMonitor() {
                 </div>
 
                 {/* Competition */}
-                <div className="flex items-center justify-between pt-1 border-t border-ev-border">
-                  <div>
-                    <p className="text-xs text-slate-400 mb-0.5">Competition</p>
-                    {compAssign ? (
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-sm font-medium text-slate-900">{compAssign.competition_name}</span>
-                        <span className={`text-xs px-1.5 py-0.5 rounded-full border capitalize font-medium ${EVENT_COLOURS[compAssign.event_type] ?? ""}`}>
-                          {compAssign.event_type}
-                        </span>
+                <div className="flex flex-col gap-1.5 pt-1 border-t border-ev-border">
+                  <p className="text-xs text-slate-400">
+                    {compAssigns.length > 1 ? "Competitions" : "Competition"}
+                  </p>
+                  {compAssigns.length === 0 ? (
+                    <span className="text-sm text-slate-400">No competition</span>
+                  ) : (
+                    compAssigns.map((ca) => (
+                      <div key={ca.competition_id} className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-sm font-medium text-slate-900 truncate">{ca.competition_name}</span>
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full border capitalize font-medium shrink-0 ${EVENT_COLOURS[ca.event_type] ?? ""}`}>
+                            {ca.event_type}
+                          </span>
+                        </div>
+                        <Link
+                          to={`/competitions/${ca.competition_id}`}
+                          className="text-xs text-ev-cyan hover:underline shrink-0"
+                        >
+                          View →
+                        </Link>
                       </div>
-                    ) : (
-                      <span className="text-sm text-slate-400">No competition</span>
-                    )}
-                  </div>
-                  {compAssign && (
-                    <Link
-                      to={`/competitions/${compAssign.competition_id}`}
-                      className="text-xs text-ev-cyan hover:underline shrink-0"
-                    >
-                      View Dashboard →
-                    </Link>
+                    ))
                   )}
                 </div>
 
@@ -510,9 +512,9 @@ export default function EcuMonitor() {
         <DeleteEspModal
           device={deleteTarget}
           assignedTeam={teams.find((t) => t.ecu_serial === deleteTarget.ecu_serial) ?? null}
-          competition={competitionMap.get(
+          competitions={competitionMap.get(
             teams.find((t) => t.ecu_serial === deleteTarget.ecu_serial)?.id ?? -1
-          ) ?? null}
+          ) ?? []}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={handleDelete}
         />
