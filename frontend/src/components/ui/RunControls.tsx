@@ -150,19 +150,16 @@ export default function RunControls({ team, competition, onRunsChanged }: Props)
 
   return (
     <div className="bg-ev-panel border border-ev-border rounded-xl p-5 flex flex-col gap-4 shadow-sm">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Run Control</p>
-          <p className="text-sm text-slate-500 mt-1">Judges start an attempt, then stop with the appropriate outcome.</p>
-        </div>
-        <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Run Control</p>
+        <div className="flex flex-wrap gap-1 bg-slate-100 rounded-lg p-1">
           {eventTypes.map((evt) => (
             <button
               key={evt}
               onClick={() => setEvent(evt)}
               disabled={busy}
               className={[
-                "px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
+                "px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
                 event === evt ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700",
               ].join(" ")}
             >
@@ -172,9 +169,9 @@ export default function RunControls({ team, competition, onRunsChanged }: Props)
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-2xl font-bold text-slate-900 tabular-nums">
+          <p className="text-xl font-bold text-slate-900 tabular-nums">
             {activeRun ? `Attempt ${activeRun.attempt_number} live` : `Attempt ${nextAttempt} ready`}
           </p>
           {activeRun && (
@@ -183,20 +180,21 @@ export default function RunControls({ team, competition, onRunsChanged }: Props)
         </div>
 
         {activeRun ? (
-          <div className="flex gap-2 flex-wrap justify-end">
+          <div className="flex flex-wrap gap-1.5 sm:justify-end">
             {(["finished", "dnf", "dq", "dns"] as const).map((o) => (
               <button
                 key={o}
                 onClick={() => stopAttempt(o)}
                 disabled={busy}
+                title={`Stop run · ${OUTCOME_LABEL[o]}`}
                 className={[
-                  "px-3 py-2 text-sm rounded-lg border transition-colors disabled:opacity-40",
+                  "px-2.5 py-1.5 text-xs font-medium rounded-md border transition-colors disabled:opacity-40",
                   o === "finished"
                     ? "bg-ev-cyan text-white border-ev-cyan hover:bg-ev-blue"
                     : "border-ev-border text-slate-700 hover:border-red-400 hover:text-red-500",
                 ].join(" ")}
               >
-                Stop · {OUTCOME_LABEL[o]}
+                {OUTCOME_LABEL[o]}
               </button>
             ))}
           </div>
@@ -205,7 +203,7 @@ export default function RunControls({ team, competition, onRunsChanged }: Props)
             onClick={startAttempt}
             disabled={busy || startBlocked}
             title={startBlocked ? blockedReason : undefined}
-            className="px-4 py-2 text-sm bg-ev-orange text-white rounded-lg hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="px-4 py-2 text-sm bg-ev-orange text-white rounded-lg hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed self-start sm:self-auto"
           >
             Start Attempt {nextAttempt}
           </button>
