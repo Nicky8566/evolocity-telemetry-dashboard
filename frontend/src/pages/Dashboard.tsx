@@ -364,24 +364,25 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Judge controls — Run Control + Events, side by side on wider screens */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {/* Judge controls — both cards share a fixed height so the row stays aligned;
+                Run Control gets the wider column (3fr) since it has more controls. */}
+            <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-3">
               {competition ? (
                 <RunControls team={selectedTeam} competition={competition} />
               ) : (
-                <div className="bg-ev-panel border border-ev-border rounded-xl p-5 text-sm text-slate-400 shadow-sm">
+                <div className="bg-ev-panel border border-ev-border rounded-xl p-5 text-sm text-slate-400 shadow-sm h-96">
                   Run Control is available when viewing a team inside a competition.
                 </div>
               )}
 
-              <div className="bg-ev-panel border border-ev-border rounded-xl p-5 flex flex-col gap-3 shadow-sm">
+              <div className="bg-ev-panel border border-ev-border rounded-xl p-5 flex flex-col gap-3 shadow-sm h-96 min-h-0">
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Events</p>
                   {teamAlerts.length > 0 && (
                     <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-500/20 text-red-400">{teamAlerts.length}</span>
                   )}
                 </div>
-                <div className="flex flex-col gap-2 overflow-y-auto max-h-56">
+                <div className="flex flex-col gap-2 overflow-y-auto flex-1 min-h-0">
                   {teamAlerts.length === 0 ? (
                     <p className="text-slate-600 text-sm">No power breach events</p>
                   ) : (
