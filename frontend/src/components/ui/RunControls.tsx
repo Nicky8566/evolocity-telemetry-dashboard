@@ -243,10 +243,11 @@ export default function RunControls({ team, competition, onRunsChanged }: Props)
                       <span className="text-slate-600 font-medium">#{r.attempt_number}</span>
                       <span className="tabular-nums text-slate-700">{formatMetric(r)}</span>
                       <span className={[
-                        "text-xs px-2 py-0.5 rounded-full capitalize",
-                        r.outcome === "running"  ? "bg-amber-500/20 text-amber-600" :
-                        r.outcome === "finished" ? "bg-emerald-500/20 text-emerald-600" :
-                                                   "bg-red-500/20 text-red-500",
+                        "text-xs px-2 py-0.5 rounded-full border font-medium",
+                        r.outcome === "running" || r.outcome === "finished" ? "capitalize" : "uppercase",
+                        r.outcome === "running"  ? "bg-amber-100 text-amber-700 border-amber-200" :
+                        r.outcome === "finished" ? "bg-green-100 text-green-700 border-green-200" :
+                                                   "bg-red-100 text-red-500 border-red-200",
                       ].join(" ")}>{r.outcome}</span>
                     </button>
                   )
