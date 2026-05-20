@@ -49,13 +49,20 @@ export default function AlertCard({ alert, teams }: Props) {
         </span>
       </div>
 
-      <div className="flex items-baseline justify-between gap-1.5">
+      <div className="flex items-baseline gap-1.5">
         <span className={`text-sm font-bold tabular-nums ${valueClass}`}>
           {alert.power_value.toFixed(0)}W
         </span>
-        <span className="text-[10px] text-slate-500">
-          {formatDuration(alert.duration_ms)}{!isActive && ` · ${formatTime(alert.started_at)}`}
-        </span>
+        <span className="text-[10px] text-slate-500">exceeded {alert.threshold}W limit</span>
+      </div>
+
+      <div className="flex items-baseline justify-between gap-1.5">
+        <p className="text-[10px] text-slate-500">
+          Duration: <span className="text-slate-700">{formatDuration(alert.duration_ms)}</span>
+        </p>
+        {!isActive && (
+          <span className="text-[10px] text-slate-400">{formatTime(alert.started_at)}</span>
+        )}
       </div>
     </div>
   )
