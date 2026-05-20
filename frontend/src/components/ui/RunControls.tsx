@@ -152,57 +152,58 @@ export default function RunControls({ team, competition, onRunsChanged }: Props)
     <div className="bg-ev-panel border border-ev-border rounded-xl p-5 flex flex-col gap-4 shadow-sm h-96 min-h-0">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Run Control</p>
-        <div className="flex flex-wrap gap-1 bg-slate-100 rounded-lg p-1">
-          {eventTypes.map((evt) => (
-            <button
-              key={evt}
-              onClick={() => setEvent(evt)}
-              disabled={busy}
-              className={[
-                "px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
-                event === evt ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700",
-              ].join(" ")}
-            >
-              {EVENT_LABELS[evt]}
-            </button>
-          ))}
-        </div>
+        {!activeRun ? (
+          <button
+            onClick={startAttempt}
+            disabled={busy || startBlocked}
+            title={startBlocked ? blockedReason : undefined}
+            className="px-3 py-1.5 text-xs font-medium bg-ev-orange text-white rounded-md hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Start Attempt {nextAttempt}
+          </button>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs text-slate-400">
+              Attempt {activeRun.attempt_number} live · started {new Date(activeRun.started_at).toLocaleTimeString()}
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {(["finished", "dnf", "dq", "dns"] as const).map((o) => (
+                <button
+                  key={o}
+                  onClick={() => stopAttempt(o)}
+                  disabled={busy}
+                  title={`Stop run · ${OUTCOME_LABEL[o]}`}
+                  className={[
+                    "px-2.5 py-1.5 text-xs font-medium rounded-md border transition-colors disabled:opacity-40",
+                    o === "finished"
+                      ? "bg-ev-cyan text-white border-ev-cyan hover:bg-ev-blue"
+                      : "border-ev-border text-slate-700 hover:border-red-400 hover:text-red-500",
+                  ].join(" ")}
+                >
+                  {OUTCOME_LABEL[o]}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
-      {activeRun ? (
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs text-slate-400">
-            Attempt {activeRun.attempt_number} live · started {new Date(activeRun.started_at).toLocaleTimeString()}
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {(["finished", "dnf", "dq", "dns"] as const).map((o) => (
-              <button
-                key={o}
-                onClick={() => stopAttempt(o)}
-                disabled={busy}
-                title={`Stop run · ${OUTCOME_LABEL[o]}`}
-                className={[
-                  "px-2.5 py-1.5 text-xs font-medium rounded-md border transition-colors disabled:opacity-40",
-                  o === "finished"
-                    ? "bg-ev-cyan text-white border-ev-cyan hover:bg-ev-blue"
-                    : "border-ev-border text-slate-700 hover:border-red-400 hover:text-red-500",
-                ].join(" ")}
-              >
-                {OUTCOME_LABEL[o]}
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <button
-          onClick={startAttempt}
-          disabled={busy || startBlocked}
-          title={startBlocked ? blockedReason : undefined}
-          className="self-end px-3 py-1.5 text-xs font-medium bg-ev-orange text-white rounded-md hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          Start Attempt {nextAttempt}
-        </button>
-      )}
+      <div className="self-start flex flex-wrap gap-1 bg-slate-100 rounded-lg p-1">
+        {eventTypes.map((evt) => (
+          <button
+            key={evt}
+            onClick={() => setEvent(evt)}
+            disabled={busy}
+            className={[
+              "px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
+              event === evt ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700",
+            ].join(" ")}
+          >
+            {EVENT_LABELS[evt]}
+          </button>
+        ))}
+      </div>
+
 
       {!activeRun && noEcu && (
         <p className="text-xs text-amber-600">This team has no ECU assigned. Assign one in <span className="font-semibold">Teams</span> before starting a run.</p>
