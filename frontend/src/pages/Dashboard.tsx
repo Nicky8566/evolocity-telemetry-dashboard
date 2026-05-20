@@ -365,8 +365,8 @@ export default function Dashboard() {
             </div>
 
             {/* Judge controls — both cards share a fixed height so the row stays aligned;
-                Run Control gets the wider column (3fr) since it has more controls. */}
-            <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-3">
+                Run Control gets most of the width since it has more controls. */}
+            <div className="grid grid-cols-1 lg:grid-cols-[5fr_2fr] gap-3">
               {competition ? (
                 <RunControls team={selectedTeam} competition={competition} />
               ) : (
