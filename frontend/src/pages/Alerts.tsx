@@ -99,7 +99,7 @@ export default function Alerts() {
             <label className="text-xs text-transparent uppercase tracking-widest">Clear</label>
             <button
               onClick={() => { setSelectedCompetition("all"); setSelectedTeam("all") }}
-              className="px-3 py-2 text-sm text-slate-500 border border-ev-border rounded-lg hover:text-slate-900 hover:border-slate-400 transition-colors"
+              className="px-3 py-2 text-sm text-slate-400 border border-ev-border rounded-lg hover:border-ev-cyan hover:text-ev-cyan transition-colors"
             >
               Clear filters
             </button>
