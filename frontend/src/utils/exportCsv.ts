@@ -60,6 +60,7 @@ export function downloadCsv(
   lines.push(`# Vehicle Type,${escape(team?.vehicle_type ?? "N/A")}`)
   lines.push(`# ECU Serial,${escape(team?.ecu_serial ?? frames[0]?.ecu_serial ?? "N/A")}`)
   lines.push(`# Power Limit,${escape(team?.power_limit != null ? `${team.power_limit}W` : "N/A")}`)
+  lines.push(`# Current Limit,${escape(team?.current_limit != null ? `${team.current_limit}A` : "N/A")}`)
   lines.push("#")
 
   // ── Run summary ──────────────────────────────────────────────────────────
@@ -81,14 +82,14 @@ export function downloadCsv(
   lines.push("#")
 
   // ── Alerts section ───────────────────────────────────────────────────────
-  lines.push("# POWER BREACH EVENTS")
-  lines.push("# Type,Started At,Ended At,Duration (ms),Peak Power (W),Threshold (W)")
+  lines.push("# LIMIT BREACH EVENTS")
+  lines.push("# Type,Metric,Started At,Ended At,Duration (ms),Peak Value,Threshold")
   if (alerts.length === 0) {
     lines.push("# (none)")
   } else {
     for (const a of alerts) {
       lines.push(
-        `# ${[a.type, a.started_at, a.ended_at ?? "", a.duration_ms ?? "", a.power_value, a.threshold]
+        `# ${[a.type, a.metric ?? "power", a.started_at, a.ended_at ?? "", a.duration_ms ?? "", a.power_value, a.threshold]
           .map(escape)
           .join(",")}`,
       )

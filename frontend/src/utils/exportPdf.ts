@@ -98,10 +98,12 @@ export function downloadPdf(
     ["Vehicle Type",  team.vehicle_type],
     ["ECU Serial",    team.ecu_serial != null ? String(team.ecu_serial) : "N/A"],
     ["Power Limit",   team.power_limit != null ? `${team.power_limit}W` : "N/A"],
+    ["Current Limit", team.current_limit != null ? `${team.current_limit}A` : "N/A"],
   ] : [
     ["Name",          "Unassigned"],
     ["ECU Serial",    ecuSerial != null ? String(ecuSerial) : "N/A"],
     ["Power Limit",   "N/A"],
+    ["Current Limit", "N/A"],
   ]
 
   // Run summary values
@@ -136,32 +138,33 @@ export function downloadPdf(
   doc.setTextColor(...CYAN)
   doc.setFont("helvetica", "bold")
   doc.setFontSize(8)
-  doc.text("POWER BREACH EVENTS", mar, y)
+  doc.text("LIMIT BREACH EVENTS", mar, y)
   y += 4
 
   if (alerts.length === 0) {
     doc.setFont("helvetica", "italic")
     doc.setFontSize(8)
     doc.setTextColor(...MUTED)
-    doc.text("No power breach events recorded.", mar, y + 4)
+    doc.text("No power or current breach events recorded.", mar, y + 4)
     y += 12
   } else {
     autoTable(doc, {
       startY: y,
       margin: { left: mar, right: mar },
-      head: [["Type", "Started", "Ended", "Duration", "Peak Power (W)", "Limit (W)"]],
+      head: [["Type", "Metric", "Started", "Ended", "Duration", "Peak", "Limit"]],
       body: alerts.map((a) => [
         a.type.charAt(0).toUpperCase() + a.type.slice(1),
+        a.metric ?? "power",
         fmt(a.started_at),
         a.ended_at ? fmt(a.ended_at) : "ongoing",
         duration(a.duration_ms),
-        a.power_value.toFixed(1),
-        a.threshold.toFixed(1),
+        `${a.power_value.toFixed(1)}${(a.metric ?? "power") === "current" ? "A" : "W"}`,
+        `${a.threshold.toFixed(1)}${(a.metric ?? "power") === "current" ? "A" : "W"}`,
       ]),
       headStyles:    { fillColor: CYAN, textColor: WHITE, fontSize: 7, fontStyle: "bold" },
       bodyStyles:    { fontSize: 7, textColor: DARK },
       alternateRowStyles: { fillColor: LIGHT },
-      columnStyles:  { 0: { cellWidth: 18 }, 3: { cellWidth: 20 }, 4: { cellWidth: 28 }, 5: { cellWidth: 22 } },
+      columnStyles:  { 0: { cellWidth: 18 }, 1: { cellWidth: 18 }, 4: { cellWidth: 20 }, 5: { cellWidth: 24 }, 6: { cellWidth: 20 } },
     })
     y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8
   }

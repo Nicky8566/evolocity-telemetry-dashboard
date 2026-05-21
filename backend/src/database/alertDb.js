@@ -2,9 +2,9 @@ import { db, persist } from './db.js';
 
 export function insertAlert(alert) {
   db.run(
-    `INSERT INTO alerts (ecu_serial, power_value, threshold, started_at, type)
-     VALUES (?, ?, ?, ?, ?)`,
-    [alert.ecu_serial, alert.power_value, alert.threshold, alert.started_at, alert.type ?? 'warning']
+    `INSERT INTO alerts (ecu_serial, power_value, threshold, started_at, metric, type)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [alert.ecu_serial, alert.power_value, alert.threshold, alert.started_at, alert.metric ?? 'power', alert.type ?? 'warning']
   );
   const result = db.exec('SELECT last_insert_rowid() AS id');
   const id = result[0].values[0][0];

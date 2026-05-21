@@ -7,6 +7,7 @@ import { broadcastAlert } from '../../websocket.js';
 
 // ecu_serial → { alertId, startedAt, peakPower, escalated }
 const activeBreaches = new Map();
+const activeCurrentBreaches = new Map();
 
 // Frames arrive at 10Hz — each covers 0.1s
 const FRAME_DURATION_HOURS = 0.1 / 3600;
@@ -29,6 +30,13 @@ function getPowerLimit(ecu_serial) {
   return teams[0].vehicle_class?.toLowerCase() === 'standard' ? 350 : 2000;
 }
 
+function getCurrentLimit(ecu_serial) {
+  const teams = getTeamByEcu(ecu_serial);
+  if (teams.length === 0) return 100;
+  if (teams[0].current_limit != null) return teams[0].current_limit;
+  return 100;
+}
+
 export function processECUFrame(payload) {
   const { ecu_serial, timestamp, voltage_samples, current_samples, power_samples, avg_power } = payload;
 
@@ -39,8 +47,11 @@ export function processECUFrame(payload) {
   const avg_energy     = avg_power * FRAME_DURATION_HOURS; // Wh delta for this frame
 
   const powerLimit   = getPowerLimit(ecu_serial);
+  const currentLimit = getCurrentLimit(ecu_serial);
   const overLimit    = avg_power >= powerLimit;
+  const overCurrentLimit = avg_current >= currentLimit;
   const wasBreaching = activeBreaches.has(ecu_serial);
+  const wasCurrentBreaching = activeCurrentBreaches.has(ecu_serial);
 
   if (overLimit && !wasBreaching) {
     // Breach just started — open as warning
@@ -85,6 +96,25 @@ export function processECUFrame(payload) {
         });
       }
     }
+  }
+
+  if (overCurrentLimit && !wasCurrentBreaching) {
+    const startedAt = new Date().toISOString();
+    const alertId   = insertAlert({ ecu_serial, power_value: avg_current, threshold: currentLimit, started_at: startedAt, metric: 'current', type: 'warning' });
+    activeCurrentBreaches.set(ecu_serial, { alertId, startedAt, peakCurrent: avg_current });
+    broadcastAlert({ type: 'alert', data: getAlertById(alertId) });
+
+  } else if (overCurrentLimit && wasCurrentBreaching) {
+    const breach = activeCurrentBreaches.get(ecu_serial);
+    if (avg_current > breach.peakCurrent) breach.peakCurrent = avg_current;
+
+  } else if (!overCurrentLimit && wasCurrentBreaching) {
+    const breach     = activeCurrentBreaches.get(ecu_serial);
+    const endedAt    = new Date().toISOString();
+    const durationMs = new Date(endedAt) - new Date(breach.startedAt);
+    updateAlertEnd(breach.alertId, breach.peakCurrent, endedAt, durationMs);
+    activeCurrentBreaches.delete(ecu_serial);
+    broadcastAlert({ type: 'alert', data: getAlertById(breach.alertId) });
   }
 
   const frame = {
