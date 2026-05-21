@@ -19,6 +19,9 @@ export default function AlertCard({ alert, teams }: Props) {
   const team      = teams.find((t) => t.ecu_serial === alert.ecu_serial)
   const isActive  = alert.ended_at === null
   const isPenalty = alert.type === "penalty"
+  const metric    = alert.metric ?? "power"
+  const unit      = metric === "current" ? "A" : "W"
+  const label     = metric === "current" ? "current" : "power"
 
   const containerClass = isActive
     ? isPenalty
@@ -51,9 +54,9 @@ export default function AlertCard({ alert, teams }: Props) {
 
       <div className="flex items-baseline gap-1.5">
         <span className={`text-sm font-bold tabular-nums ${valueClass}`}>
-          {alert.power_value.toFixed(0)}W
+          {alert.power_value.toFixed(metric === "current" ? 1 : 0)}{unit}
         </span>
-        <span className="text-[10px] text-slate-500">exceeded {alert.threshold}W limit</span>
+        <span className="text-[10px] text-slate-500">exceeded {alert.threshold}{unit} {label} limit</span>
       </div>
 
       <div className="flex items-baseline justify-between gap-1.5">

@@ -11,8 +11,8 @@ function rowsFromResult(result) {
 
 export function insertTeam(team) {
   db.run(
-    `INSERT INTO teams (team_name, team_id, vehicle_class, vehicle_type, ecu_serial, power_limit)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO teams (team_name, team_id, vehicle_class, vehicle_type, ecu_serial, power_limit, current_limit)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [
       team.team_name,
       team.team_id,
@@ -20,6 +20,7 @@ export function insertTeam(team) {
       team.vehicle_type,
       team.ecu_serial ?? null,
       team.power_limit ?? null,
+      team.current_limit ?? null,
     ]
   );
   const result = db.exec('SELECT last_insert_rowid() AS id');
@@ -32,6 +33,14 @@ export function updateTeamPowerLimit(id, power_limit) {
   db.run(
     'UPDATE teams SET power_limit = ? WHERE id = ?',
     [power_limit ?? null, id]
+  );
+  persist();
+}
+
+export function updateTeamCurrentLimit(id, current_limit) {
+  db.run(
+    'UPDATE teams SET current_limit = ? WHERE id = ?',
+    [current_limit ?? null, id]
   );
   persist();
 }

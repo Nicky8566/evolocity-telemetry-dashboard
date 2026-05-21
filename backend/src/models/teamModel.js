@@ -8,6 +8,7 @@ export const teamSchema = {
   vehicle_type:  "TEXT CHECK(vehicle_type IN ('kart', 'bike')) NOT NULL",
   ecu_serial:    'INTEGER',
   power_limit:   'INTEGER',
+  current_limit: 'INTEGER',
 };
 
 export const teamDDL = `
@@ -18,6 +19,7 @@ export const teamDDL = `
     vehicle_class TEXT CHECK(vehicle_class IN ('standard', 'open')) NOT NULL,
     vehicle_type  TEXT CHECK(vehicle_type IN ('kart', 'bike')) NOT NULL,
     ecu_serial    INTEGER,
-    power_limit   INTEGER
+    power_limit   INTEGER,
+    current_limit INTEGER
   )
 `;

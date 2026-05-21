@@ -15,6 +15,7 @@ export interface Team {
   vehicle_type:  string
   ecu_serial:    number | null
   power_limit:   number | null
+  current_limit: number | null
   joined_at:     string | null
 }
 
@@ -50,6 +51,7 @@ export interface Alert {
   type:        "warning" | "penalty"
   power_value: number
   threshold:   number
+  metric?:     "power" | "current"
   started_at:  string
   ended_at:    string | null
   duration_ms: number | null

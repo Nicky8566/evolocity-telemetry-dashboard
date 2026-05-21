@@ -1,4 +1,4 @@
-import { getTeams, saveTeam, getTeam, deleteTeam, getTeamByEcuSerial, updateTeamEcuSerial, getTeamByTeamName, getTeamByTeamID, updateTeamPowerLimit as setPowerLimit } from '../services/teamService.js';
+import { getTeams, saveTeam, getTeam, deleteTeam, getTeamByEcuSerial, updateTeamEcuSerial, getTeamByTeamName, getTeamByTeamID, updateTeamPowerLimit as setPowerLimit, updateTeamCurrentLimit as setCurrentLimit } from '../services/teamService.js';
 import { broadcast } from '../../websocket.js';
 
 export function getAllTeams(req, res) {
@@ -35,6 +35,7 @@ export function saveTeamInfo(req, res) {
     vehicle_type:  vehicle_type.toLowerCase(),
     ecu_serial:    req.body.ecu_serial ? parseInt(req.body.ecu_serial) : null,
     power_limit:   req.body.power_limit ?? null,
+    current_limit: req.body.current_limit ?? null,
   };
   broadcast({ type: 'team', data: team });
   res.json({ data: team });
@@ -77,6 +78,22 @@ export function updateTeamPowerLimit(req, res) {
   res.json({
     message: 'Updated team power limit',
     data: { id, power_limit: nextPowerLimit }
+  });
+}
+
+export function updateTeamCurrentLimit(req, res) {
+  const { id, current_limit } = req.body;
+  if (id == null) {
+    return res.status(400).json({ error: 'Missing required field: id' });
+  }
+  const nextCurrentLimit = Number(current_limit);
+  if (!Number.isFinite(nextCurrentLimit) || nextCurrentLimit < 0 || nextCurrentLimit > 100) {
+    return res.status(400).json({ error: 'current_limit must be a number from 0 to 100' });
+  }
+  setCurrentLimit(id, nextCurrentLimit);
+  res.json({
+    message: 'Updated team current limit',
+    data: { id, current_limit: nextCurrentLimit }
   });
 }
 
