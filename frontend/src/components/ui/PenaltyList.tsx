@@ -100,7 +100,7 @@ export default function PenaltyList({ penalties, onChange }: Props) {
               ) : (
                 <>
                   <button onClick={() => startEdit(p)} className="text-xs text-slate-400 hover:text-slate-700">Edit</button>
-                  <button onClick={() => remove(p)} className="text-xs text-red-400 hover:text-red-600">Delete</button>
+                  <button onClick={() => remove(p)} className="text-xs text-slate-400 hover:text-slate-700">Delete</button>
                 </>
               )}
             </div>

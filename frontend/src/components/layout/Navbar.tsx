@@ -14,7 +14,7 @@ export default function Navbar() {
   const { connected } = useTelemetry();
 
   return (
-    <header className="w-full bg-ev-cyan px-6 py-3 flex items-center gap-8 shrink-0">
+    <header className="w-full bg-ev-cyan px-6 py-3 flex items-center gap-8 shrink-0 sticky top-0 z-50">
       {/* Brand */}
       <img src={logo} alt="EVolocity" className="h-7 shrink-0" />
 
