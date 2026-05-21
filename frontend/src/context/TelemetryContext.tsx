@@ -92,12 +92,7 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
 
           setBoardData((prev) => {
             const cutoff = Date.now() - 5 * 60 * 1000
-            const existing = prev[boardId] ?? []
-            // Remove any synthetic zero frames from the tail (injected during silence/disconnect)
-            // so reconnection doesn't produce dips to 0 in the chart.
-            let end = existing.length
-            while (end > 0 && existing[end - 1].avg_voltage === 0) end--
-            const updated = [...existing.slice(0, end), frame].filter(
+            const updated = [...(prev[boardId] ?? []), frame].filter(
               (f) => new Date(f.timestamp).getTime() >= cutoff
             )
             return { ...prev, [boardId]: updated }
