@@ -7,7 +7,8 @@ export function receiveECUData(req, res) {
   console.log('[ECU] payload:', JSON.stringify(req.body, null, 2));
   const payload = req.body;
 
-  if (!payload.ecu_serial || !payload.timestamp || !Array.isArray(payload.voltage_samples) || !Array.isArray(payload.current_samples)) {
+  if (payload.ecu_serial == null || payload.timestamp == null ||
+      !Array.isArray(payload.voltage_samples) || !Array.isArray(payload.current_samples)) {
     return res.status(400).json({ error: 'Missing required fields: ecu_serial, timestamp, voltage_samples, current_samples' });
   }
 
@@ -15,25 +16,26 @@ export function receiveECUData(req, res) {
     return res.status(400).json({ error: 'voltage_samples and current_samples must each contain exactly 10 readings' });
   }
 
-  // if (!Number.isFinite(payload.avg_power)) {
-  //   return res.status(400).json({ error: 'avg_power must be a finite number' });
-  // }
-
   if (payload.power_samples != null && (!Array.isArray(payload.power_samples) || payload.power_samples.length !== 10)) {
     return res.status(400).json({ error: 'power_samples must contain exactly 10 readings when provided' });
   }
 
-  const frame = processECUFrame(payload);
-  broadcast({ type: 'ecu_frame', data: frame });
-  res.json({ received: true, frame });
+  const frames = processECUFrame(payload);
+
+  for (const frame of frames) {
+    broadcast({ type: 'ecu_frame', data: frame });
+  }
+
+  res.json({ received: true, frames });
 }
 
 export function getECUData(req, res) {
-  const { ecu_serial, from, limit } = req.query;
+  const { ecu_serial, boot_session, from, limit } = req.query;
   const rows = getECUHistory({
-    ecu_serial: ecu_serial ? parseInt(ecu_serial) : undefined,
-    from:       from       || undefined,
-    limit:      limit      ? parseInt(limit)      : undefined,
+    ecu_serial:   ecu_serial   ? parseInt(ecu_serial)   : undefined,
+    boot_session: boot_session != null ? parseInt(boot_session) : undefined,
+    from:         from         || undefined,
+    limit:        limit        ? parseInt(limit)         : undefined,
   });
   res.json({ count: rows.length, data: rows });
 }

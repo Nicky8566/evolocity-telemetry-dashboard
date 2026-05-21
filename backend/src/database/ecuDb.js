@@ -3,11 +3,13 @@ import { db, persist } from './db.js';
 export function insertECUFrame(frame) {
   db.run(
     `INSERT INTO ecu_data
-      (ecu_serial, timestamp, voltage_samples, current_samples, power_samples, avg_voltage, avg_current, avg_power, avg_energy, recorded_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (ecu_serial, timestamp, boot_session, uptime_ms, voltage_samples, current_samples, power_samples, avg_voltage, avg_current, avg_power, avg_energy, recorded_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       frame.ecu_serial,
       frame.timestamp,
+      frame.boot_session ?? 0,
+      frame.uptime_ms ?? null,
       JSON.stringify(frame.voltage_samples),
       frame.current_samples ? JSON.stringify(frame.current_samples) : null,
       frame.power_samples   ? JSON.stringify(frame.power_samples)   : null,
@@ -21,19 +23,25 @@ export function insertECUFrame(frame) {
   persist();
 }
 
-export function getAllECUFrames({ ecu_serial, from, limit } = {}) {
+export function getAllECUFrames({ ecu_serial, boot_session, from, limit } = {}) {
   const conditions = [];
   const params     = [];
 
-  if (ecu_serial != null) { conditions.push('ecu_serial = ?'); params.push(ecu_serial); }
-  if (from)               { conditions.push('recorded_at >= ?'); params.push(from); }
+  if (ecu_serial  != null) { conditions.push('ecu_serial = ?');   params.push(ecu_serial); }
+  if (boot_session != null) { conditions.push('boot_session = ?'); params.push(boot_session); }
+  if (from)                 { conditions.push('timestamp >= ?');   params.push(from); }
 
   const where    = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const limitSql = limit != null ? `LIMIT ${parseInt(limit)}` : '';
 
+  // Order by device uptime when available so dump frames (buffered during
+  // offline, arriving in a burst on reconnect) sort into their correct
+  // chronological position rather than interleaving with live frames by
+  // server-receipt time.  Simulator frames (null uptime_ms) fall back to
+  // insertion order via id.
   const result = db.exec(
-    `SELECT ecu_serial, timestamp, avg_voltage, avg_current, avg_power, avg_energy
-     FROM ecu_data ${where} ORDER BY id ASC ${limitSql}`,
+    `SELECT ecu_serial, boot_session, timestamp, uptime_ms, avg_voltage, avg_current, avg_power, avg_energy
+     FROM ecu_data ${where} ORDER BY boot_session ASC, COALESCE(uptime_ms, id) ASC ${limitSql}`,
     params
   );
   if (result.length === 0) return [];

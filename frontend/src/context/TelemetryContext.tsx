@@ -24,6 +24,20 @@ interface TelemetryContextValue {
 
 const TelemetryContext = createContext<TelemetryContextValue | null>(null)
 
+const STORE_WINDOW_MS = 5 * 60 * 1000  // 5 minutes of device time kept in memory
+
+// Insert `frame` into `arr` at the correct chronological position (sorted by
+// timestamp_ms).  Handles buffered-dump frames that arrive out of order.
+// When a real (non-synthetic) frame arrives, all synthetic placeholder zeros
+// are stripped so reconnection dumps cleanly replace the disconnection dip.
+function sortedInsert(arr: ECUFrame[], frame: ECUFrame): ECUFrame[] {
+  const base = frame.synthetic ? arr : arr.filter(f => !f.synthetic)
+  const idx  = base.findIndex(f => f.timestamp_ms > frame.timestamp_ms)
+  if (idx === -1) return [...base, frame]
+  if (base[idx - 1]?.timestamp_ms === frame.timestamp_ms) return base  // dedupe
+  return [...base.slice(0, idx), frame, ...base.slice(idx)]
+}
+
 export function TelemetryProvider({ children }: { children: ReactNode }) {
   const [connected, setConnected]                 = useState(false)
   const [boardData, setBoardData]                 = useState<BoardData>({})
@@ -36,7 +50,8 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
   const reconnectTimerRef                         = useRef<number | null>(null)
   const reconnectDelayRef                         = useRef(1000)
 
-  // Pre-populate charts with the last 5 minutes of stored data on first load
+  // Pre-populate charts with the last 5 minutes of stored data on first load.
+  // History rows don't include timestamp_ms or received_at_ms, so we derive them.
   useEffect(() => {
     const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
     ecuApi
@@ -45,10 +60,15 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
         if (rows.length === 0) return
         const grouped: BoardData = {}
         rows.forEach((row) => {
-          const boardId = `ECU-${row.ecu_serial}`
+          const timestamp_ms = row.uptime_ms != null
+            ? row.uptime_ms
+            : new Date(row.timestamp).getTime()
+          const frame: ECUFrame = { ...row, boot_session: row.boot_session ?? 0, timestamp_ms }
+          const boardId = `ECU-${frame.ecu_serial}-${frame.boot_session}`
           if (!grouped[boardId]) grouped[boardId] = []
-          grouped[boardId].push(row)
+          grouped[boardId].push(frame)
         })
+        Object.values(grouped).forEach(arr => arr.sort((a, b) => a.timestamp_ms - b.timestamp_ms))
         setBoardData(grouped)
       })
       .catch((err) => console.error("Failed to load ECU history:", err))
@@ -77,7 +97,6 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
         }, reconnectDelayRef.current)
       }
 
-      // onerror is always followed by onclose — just let onclose handle the retry
       ws.onerror = () => ws.close()
 
       ws.onmessage = (event) => {
@@ -86,37 +105,49 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
           if (msg.type !== "ecu_frame") return
 
           const frame: ECUFrame = msg.data
-          const boardId = `ECU-${frame.ecu_serial}`
+          const boardId = `ECU-${frame.ecu_serial}-${frame.boot_session}`
 
           window.clearTimeout(zeroTimeoutsRef.current[boardId])
 
           setBoardData((prev) => {
-            const cutoff = Date.now() - 5 * 60 * 1000
-            const updated = [...(prev[boardId] ?? []), frame].filter(
-              (f) => new Date(f.timestamp).getTime() >= cutoff
-            )
-            return { ...prev, [boardId]: updated }
+            const inserted = sortedInsert(prev[boardId] ?? [], frame)
+            // Rolling window: keep the last 5 minutes of device time.
+            // Compare against timestamp_ms (device units) not wall-clock.
+            const latestMs = inserted[inserted.length - 1].timestamp_ms
+            const cutoff   = latestMs - STORE_WINDOW_MS
+            const windowed = inserted.filter(f => f.timestamp_ms >= cutoff)
+            return { ...prev, [boardId]: windowed }
           })
 
-          // 3s silence → inject a zero frame so the chart drops to 0
+          // 8s of silence → inject a synthetic zero frame to drop the chart.
+          // The zero frame uses uptime_ms + 100 so it slots immediately after
+          // the last real frame and is stripped if real data resumes.
           zeroTimeoutsRef.current[boardId] = window.setTimeout(() => {
             setBoardData((prev) => {
               const existing = prev[boardId] ?? []
               if (existing.length === 0) return prev
               const last = existing[existing.length - 1]
-              if (last.avg_voltage === 0) return prev
+              if (last.synthetic) return prev
+              const zeroMs    = last.timestamp_ms + 100
               const zeroFrame: ECUFrame = {
                 ...last,
-                timestamp:   new Date().toISOString(),
-                avg_voltage: 0,
-                avg_current: 0,
-                avg_power:   null,
-                avg_energy:  null,
+                timestamp:       new Date().toISOString(),
+                timestamp_ms:    zeroMs,
+                received_at_ms:  Date.now(),
+                synthetic:       true,
+                avg_voltage:     0,
+                avg_current:     0,
+                avg_power:       null,
+                avg_energy:      null,
               }
-              const cutoff = Date.now() - 5 * 60 * 1000
-              return { ...prev, [boardId]: [...existing, zeroFrame].filter((f) => new Date(f.timestamp).getTime() >= cutoff) }
+              const latestMs = zeroMs
+              const cutoff   = latestMs - STORE_WINDOW_MS
+              return {
+                ...prev,
+                [boardId]: [...existing, zeroFrame].filter(f => f.timestamp_ms >= cutoff),
+              }
             })
-          }, 3000)
+          }, 8000)
         } catch {
           // ignore malformed messages
         }

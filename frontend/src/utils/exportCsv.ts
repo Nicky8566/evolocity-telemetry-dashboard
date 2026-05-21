@@ -2,6 +2,7 @@ import type { Alert, Competition, ECUFrame, Team } from "../types"
 
 const FRAME_COLS: (keyof ECUFrame)[] = [
   "timestamp",
+  "uptime_ms",
   "ecu_serial",
   "avg_voltage",
   "avg_current",
@@ -9,13 +10,15 @@ const FRAME_COLS: (keyof ECUFrame)[] = [
   "avg_energy",
 ]
 
-const FRAME_HEADERS: Record<keyof ECUFrame, string> = {
-  timestamp:   "Timestamp",
-  ecu_serial:  "ECU Serial",
-  avg_voltage: "Voltage (V)",
-  avg_current: "Current (A)",
-  avg_power:   "Power (W)",
-  avg_energy:  "Energy (Wh)",
+const FRAME_HEADERS: Record<string, string> = {
+  timestamp:    "Timestamp (UTC)",
+  uptime_ms:    "Device Uptime (ms)",
+  ecu_serial:   "ECU Serial",
+  avg_voltage:  "Voltage (V)",
+  avg_current:  "Current (A)",
+  avg_power:    "Power (W)",
+  avg_energy:   "Energy (Wh)",
+  timestamp_ms: "Timestamp (ms)",
 }
 
 function escape(val: unknown): string {

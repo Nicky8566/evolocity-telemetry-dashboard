@@ -46,7 +46,12 @@ export default function Competitions() {
     if (!selected) return []
     return selected.teams
       .map((team) => {
-        const boardId     = `ECU-${team.ecu_serial}`
+        const boardId = team.ecu_serial
+          ? Object.keys(boardData)
+              .filter(k => parseInt(k.split("-")[1]) === team.ecu_serial)
+              .sort((a, b) => parseInt(a.split("-")[2] ?? "0") - parseInt(b.split("-")[2] ?? "0"))
+              .at(-1) ?? ""
+          : ""
         const frames      = boardData[boardId] ?? []
         const latest      = frames.at(-1) ?? null
         const totalEnergy = frames.reduce((s, f) => s + (f.avg_energy ?? 0), 0)
