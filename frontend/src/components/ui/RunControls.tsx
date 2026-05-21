@@ -33,13 +33,37 @@ function formatMetric(run: Run) {
   return `${run.raw_metric.toFixed(2)} s`
 }
 
+// Same liveness rule the team sidebar uses (Dashboard.tsx): non-zero voltage in the last 5s.
+const LIVE_WINDOW_MS = 5000
+
 export default function RunControls({ team, competition, onRunsChanged }: Props) {
-  const { runsVersion, penaltiesVersion } = useTelemetry()
+  const { runsVersion, penaltiesVersion, boardData } = useTelemetry()
   const eventTypes  = competition.event_types
   const [event, setEvent] = useState<EventType>(eventTypes[0])
   const [runs, setRuns]   = useState<Run[]>([])
   const [busy, setBusy]   = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [now, setNow]     = useState(() => Date.now())
+
+  // Tick once per second so the live-frame staleness check re-evaluates without telemetry.
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(t)
+  }, [])
+
+  const ecuLive = useMemo(() => {
+    if (team.ecu_serial == null) return false
+    const frames = boardData[`ECU-${team.ecu_serial}`] ?? []
+    const last = frames.at(-1)
+    if (!last) return false
+    return last.avg_voltage > 0 && now - new Date(last.timestamp).getTime() < LIVE_WINDOW_MS
+  }, [boardData, team.ecu_serial, now])
+
+  const noEcu        = team.ecu_serial == null
+  const startBlocked = noEcu || !ecuLive
+  const blockedReason = noEcu
+    ? "Assign an ECU to this team before starting a run."
+    : `ECU ${team.ecu_serial} is offline. Wait for telemetry before starting a run.`
 
   // Keep event selection in sync if the competition's events change.
   useEffect(() => {
@@ -125,126 +149,136 @@ export default function RunControls({ team, competition, onRunsChanged }: Props)
   }
 
   return (
-    <div className="bg-ev-panel border border-ev-border rounded-xl p-5 flex flex-col gap-4 shadow-sm">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Run Control</p>
-          <p className="text-sm text-slate-500 mt-1">Judges start an attempt, then stop with the appropriate outcome.</p>
-        </div>
-        <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
-          {eventTypes.map((evt) => (
-            <button
-              key={evt}
-              onClick={() => setEvent(evt)}
-              disabled={busy}
-              className={[
-                "px-3 py-1.5 rounded-md text-xs font-medium transition-colors",
-                event === evt ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700",
-              ].join(" ")}
-            >
-              {EVENT_LABELS[evt]}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <p className="text-2xl font-bold text-slate-900 tabular-nums">
-            {activeRun ? `Attempt ${activeRun.attempt_number} live` : `Attempt ${nextAttempt} ready`}
-          </p>
-          {activeRun && (
-            <p className="text-xs text-slate-400 mt-0.5">Started {new Date(activeRun.started_at).toLocaleTimeString()}</p>
-          )}
-        </div>
-
-        {activeRun ? (
-          <div className="flex gap-2 flex-wrap justify-end">
-            {(["finished", "dnf", "dq", "dns"] as const).map((o) => (
-              <button
-                key={o}
-                onClick={() => stopAttempt(o)}
-                disabled={busy}
-                className={[
-                  "px-3 py-2 text-sm rounded-lg border transition-colors disabled:opacity-40",
-                  o === "finished"
-                    ? "bg-ev-cyan text-white border-ev-cyan hover:bg-ev-blue"
-                    : "border-ev-border text-slate-700 hover:border-red-400 hover:text-red-500",
-                ].join(" ")}
-              >
-                Stop · {OUTCOME_LABEL[o]}
-              </button>
-            ))}
-          </div>
-        ) : (
+    <div className="bg-ev-panel border border-ev-border rounded-xl p-5 flex flex-col gap-4 shadow-sm h-96 min-h-0">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Run Control</p>
+        {!activeRun ? (
           <button
             onClick={startAttempt}
-            disabled={busy || team.ecu_serial == null}
-            title={team.ecu_serial == null ? "Assign an ECU to this team before starting a run." : undefined}
-            className="px-4 py-2 text-sm bg-ev-orange text-white rounded-lg hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+            disabled={busy || startBlocked}
+            title={startBlocked ? blockedReason : undefined}
+            className="px-3 py-1.5 text-xs font-medium border border-ev-cyan text-ev-cyan rounded-md hover:bg-ev-cyan/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             Start Attempt {nextAttempt}
           </button>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs text-slate-400">
+              Attempt {activeRun.attempt_number} live · started {new Date(activeRun.started_at).toLocaleTimeString()}
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {(["finished", "dnf", "dq", "dns"] as const).map((o) => (
+                <button
+                  key={o}
+                  onClick={() => stopAttempt(o)}
+                  disabled={busy}
+                  title={`Stop run · ${OUTCOME_LABEL[o]}`}
+                  className={[
+                    "px-2.5 py-1.5 text-xs font-medium rounded-md border transition-colors disabled:opacity-40",
+                    o === "finished"
+                      ? "border-ev-cyan text-ev-cyan hover:bg-ev-cyan/10"
+                      : "border-ev-border text-slate-700 hover:border-red-400 hover:text-red-500",
+                  ].join(" ")}
+                >
+                  {OUTCOME_LABEL[o]}
+                </button>
+              ))}
+            </div>
+          </div>
         )}
       </div>
 
-      {!activeRun && team.ecu_serial == null && (
-        <p className="text-xs text-amber-600">This team has no ECU assigned — assign one in <span className="font-semibold">Teams</span> before starting a run.</p>
+      <div className="self-start flex flex-wrap gap-1 bg-slate-100 rounded-lg p-1">
+        {eventTypes.map((evt) => (
+          <button
+            key={evt}
+            onClick={() => setEvent(evt)}
+            disabled={busy}
+            className={[
+              "px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
+              event === evt ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700",
+            ].join(" ")}
+          >
+            {EVENT_LABELS[evt]}
+          </button>
+        ))}
+      </div>
+
+
+      {!activeRun && noEcu && (
+        <p className="text-xs text-amber-600">This team has no ECU assigned. Assign one in <span className="font-semibold">Teams</span> before starting a run.</p>
+      )}
+      {!activeRun && !noEcu && !ecuLive && (
+        <p className="text-xs text-amber-600">ECU {team.ecu_serial} is offline. Wait for telemetry before starting a run.</p>
       )}
 
       {error && <p className="text-xs text-red-500">{error}</p>}
 
-      {runsForEvent.length > 0 && (
-        <div className="border-t border-ev-border pt-3">
-          <p className="text-xs text-slate-400 uppercase tracking-widest font-semibold mb-2">
-            Attempts ({EVENT_LABELS[event]}) — click to view its penalties
+      {/* Attempts + Penalties sit side by side, each with its own scrollable region,
+          so the layout stays stable from zero to many attempts. */}
+      <div className="flex-1 min-h-0 grid grid-cols-2 gap-3">
+        <section className="border-t border-ev-border pt-3 flex flex-col min-h-0">
+          <p className="text-xs text-slate-400 uppercase tracking-widest font-semibold mb-2 shrink-0">
+            Attempts
           </p>
-          <div className="flex flex-col gap-1.5 max-h-40 overflow-y-auto">
-            {runsForEvent.map((r) => {
-              const isSelected = selectedRun?.id === r.id
-              return (
-                <button
-                  key={r.id}
-                  type="button"
-                  onClick={() => setSelectedRunId(r.id)}
-                  className={[
-                    "flex items-center justify-between text-sm px-2 py-1 rounded-md border transition-colors text-left",
-                    isSelected
-                      ? "bg-ev-cyan/10 border-ev-cyan/40"
-                      : "border-transparent hover:bg-slate-50",
-                  ].join(" ")}
-                >
-                  <span className="text-slate-600 font-medium">#{r.attempt_number}</span>
-                  <span className="tabular-nums text-slate-700">{formatMetric(r)}</span>
-                  <span className={[
-                    "text-xs px-2 py-0.5 rounded-full capitalize",
-                    r.outcome === "running"  ? "bg-amber-500/20 text-amber-600" :
-                    r.outcome === "finished" ? "bg-emerald-500/20 text-emerald-600" :
-                                               "bg-red-500/20 text-red-500",
-                  ].join(" ")}>{r.outcome}</span>
-                </button>
-              )
-            })}
+          <div className="flex-1 min-h-0 overflow-y-auto -mr-1 pr-1">
+            {runsForEvent.length === 0 ? (
+              <p className="text-xs text-slate-400">No attempts yet.</p>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                {runsForEvent.map((r) => {
+                  const isSelected = selectedRun?.id === r.id
+                  return (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => setSelectedRunId(r.id)}
+                      className={[
+                        "flex items-center justify-between text-sm px-2 py-1 rounded-md border transition-colors text-left",
+                        isSelected
+                          ? "bg-ev-cyan/10 border-ev-cyan/40"
+                          : "border-transparent hover:bg-slate-50",
+                      ].join(" ")}
+                    >
+                      <span className="text-slate-600 font-medium">#{r.attempt_number}</span>
+                      <span className="tabular-nums text-slate-700">{formatMetric(r)}</span>
+                      <span className={[
+                        "text-xs px-2 py-0.5 rounded-full border font-medium",
+                        r.outcome === "running" || r.outcome === "finished" ? "capitalize" : "uppercase",
+                        r.outcome === "running"  ? "bg-amber-100 text-amber-700 border-amber-200" :
+                        r.outcome === "finished" ? "bg-green-100 text-green-700 border-green-200" :
+                                                   "bg-red-100 text-red-500 border-red-200",
+                      ].join(" ")}>{r.outcome}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        </section>
 
-      {selectedRun && (
-        <div className="border-t border-ev-border pt-3">
-          <div className="flex items-center justify-between mb-2">
+        <section className="border-t border-ev-border pt-3 flex flex-col min-h-0">
+          <div className="flex items-center justify-between mb-2 shrink-0">
             <p className="text-xs text-slate-400 uppercase tracking-widest font-semibold">
-              Penalties — attempt {selectedRun.attempt_number}
+              Penalties
             </p>
             <button
               onClick={() => setShowPenalty(true)}
-              className="text-xs px-2.5 py-1 rounded-md bg-red-500 text-white hover:bg-red-600 transition-colors"
+              disabled={!selectedRun}
+              className="text-xs px-2.5 py-1 rounded-md border border-red-500 text-red-500 hover:bg-red-500/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               + Penalty
             </button>
           </div>
-          <PenaltyList penalties={penalties} onChange={() => { refreshPenalties(); onRunsChanged?.() }} />
-        </div>
-      )}
+          <div className="flex-1 min-h-0 overflow-y-auto -mr-1 pr-1">
+            {!selectedRun ? (
+              <p className="text-xs text-slate-400">Start an attempt to apply penalties.</p>
+            ) : (
+              <PenaltyList penalties={penalties} onChange={() => { refreshPenalties(); onRunsChanged?.() }} />
+            )}
+          </div>
+        </section>
+      </div>
 
       {showPenalty && selectedRun && (
         <PenaltyModal

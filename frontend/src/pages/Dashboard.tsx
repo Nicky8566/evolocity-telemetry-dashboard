@@ -291,11 +291,6 @@ export default function Dashboard() {
               <StatCard label="Energy"  value={latestFrame?.avg_energy?.toFixed(5)  ?? null} unit="Wh" accentClass="border-t-green-500" />
             </div>
 
-            {/* Run controls — only when viewing a team inside a competition */}
-            {competition && (
-              <RunControls team={selectedTeam} competition={competition} />
-            )}
-
             {/* Limit controls */}
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
               <div className="bg-ev-panel border border-ev-border rounded-xl p-5 flex flex-col gap-4 shadow-sm">
@@ -429,21 +424,31 @@ export default function Dashboard() {
                 )}
               </div>
             </div>
+            {/* Judge controls — both cards share a fixed height so the row stays aligned;
+                Run Control gets most of the width since it has more controls. */}
+            <div className="grid grid-cols-1 lg:grid-cols-[5fr_2fr] gap-3">
+              {competition ? (
+                <RunControls team={selectedTeam} competition={competition} />
+              ) : (
+                <div className="bg-ev-panel border border-ev-border rounded-xl p-5 text-sm text-slate-400 shadow-sm h-96">
+                  Run Control is available when viewing a team inside a competition.
+                </div>
+              )}
 
-            {/* Alerts */}
-            <div className="bg-ev-panel border border-ev-border rounded-xl p-5 flex flex-col gap-3 shadow-sm">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Events</p>
-                {teamAlerts.length > 0 && (
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-500/20 text-red-400">{teamAlerts.length}</span>
-                )}
-              </div>
-              <div className="flex flex-col gap-2 overflow-y-auto max-h-56">
-                {teamAlerts.length === 0 ? (
-                  <p className="text-slate-600 text-sm">No power or current breach events</p>
-                ) : (
-                  teamAlerts.map((alert) => <AlertCard key={alert.id} alert={alert} teams={teams} />)
-                )}
+              <div className="bg-ev-panel border border-ev-border rounded-xl p-5 flex flex-col gap-3 shadow-sm h-96 min-h-0">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Events</p>
+                  {teamAlerts.length > 0 && (
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">{teamAlerts.length}</span>
+                  )}
+                </div>
+                <div className="flex flex-col gap-2 overflow-y-auto flex-1 min-h-0">
+                  {teamAlerts.length === 0 ? (
+                    <p className="text-slate-600 text-sm">No power or current breach events</p>
+                  ) : (
+                    teamAlerts.map((alert) => <AlertCard key={alert.id} alert={alert} teams={teams} />)
+                  )}
+                </div>
               </div>
             </div>
           </>
@@ -451,12 +456,12 @@ export default function Dashboard() {
       </div>
 
       {/* ── Team panel ───────────────────────────────────────────────── */}
-      <aside className="w-48 shrink-0 flex flex-col gap-4 order-last border-l border-ev-cyan/30 pl-6">
+      <aside className="w-48 shrink-0 flex flex-col gap-4 order-last border-l border-ev-cyan/30 pl-6 sticky top-[5.25rem] self-start h-[calc(100vh-7.25rem)]">
         <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Teams</p>
-        <div className="flex flex-col gap-1 overflow-y-auto flex-1">
-          <button onClick={() => setShowCreateTeam(true)} className="text-left px-3 py-2.5 rounded-lg border border-dashed border-ev-cyan/40 text-ev-cyan text-sm hover:bg-ev-cyan/5 transition-colors">
-            + Add Team
-          </button>
+        <button onClick={() => setShowCreateTeam(true)} className="text-left px-3 py-2.5 rounded-lg border border-dashed border-ev-cyan/40 text-ev-cyan text-sm hover:bg-ev-cyan/5 transition-colors shrink-0">
+          + Add Team
+        </button>
+        <div className="scrollbar-hover flex flex-col gap-1 overflow-y-auto flex-1 min-h-0">
           {teams.length === 0 ? (
             <p className="text-slate-500 text-xs px-3 pt-1">No teams registered</p>
           ) : (

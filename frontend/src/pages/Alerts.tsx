@@ -60,7 +60,7 @@ export default function Alerts() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-white">Alerts</h2>
+        <h2 className="text-2xl font-bold text-slate-900">Alerts</h2>
         <p className="text-slate-400 text-sm mt-0.5">Power and current breach incidents across all boards</p>
       </div>
 
@@ -71,7 +71,7 @@ export default function Alerts() {
           <select
             value={selectedCompetition}
             onChange={(e) => { setSelectedCompetition(e.target.value); setSelectedTeam("all") }}
-            className="bg-ev-panel border border-ev-border rounded-lg px-3 py-2 text-sm text-white"
+            className="bg-ev-panel border border-ev-border rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-ev-cyan"
           >
             <option value="all">All competitions</option>
             {competitions.map((c) => (
@@ -85,7 +85,7 @@ export default function Alerts() {
           <select
             value={selectedTeam}
             onChange={(e) => setSelectedTeam(e.target.value)}
-            className="bg-ev-panel border border-ev-border rounded-lg px-3 py-2 text-sm text-white"
+            className="bg-ev-panel border border-ev-border rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-ev-cyan"
           >
             <option value="all">All teams</option>
             {filteredTeams.map((t) => (
@@ -99,7 +99,7 @@ export default function Alerts() {
             <label className="text-xs text-transparent uppercase tracking-widest">Clear</label>
             <button
               onClick={() => { setSelectedCompetition("all"); setSelectedTeam("all") }}
-              className="px-3 py-2 text-sm text-slate-400 border border-ev-border rounded-lg hover:text-white hover:border-slate-500 transition-colors"
+              className="px-3 py-2 text-sm text-slate-500 border border-ev-border rounded-lg hover:text-slate-900 hover:border-slate-400 transition-colors"
             >
               Clear filters
             </button>
@@ -120,7 +120,7 @@ export default function Alerts() {
       </div>
 
       {/* Alert list */}
-      <div className="flex flex-col gap-3 overflow-y-auto max-h-[calc(100vh-20rem)]">
+      <div className="flex flex-col gap-3">
         {loading ? (
           <p className="text-slate-500 text-sm">Loading alerts...</p>
         ) : visibleAlerts.length === 0 ? (
