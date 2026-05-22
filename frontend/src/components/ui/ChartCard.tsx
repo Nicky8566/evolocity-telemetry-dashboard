@@ -1,3 +1,4 @@
+import { useMemo } from "react"
 import {
   Brush,
   CartesianGrid,
@@ -35,7 +36,30 @@ function fmtTime(ms: number): string {
   return new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
 }
 
+// Custom XAxis tick: device ms on top, UTC wall-clock below.
+// utcOffset = wall-clock epoch - device timestamp_ms, computed from first frame.
+function makeXTick(utcOffset: number) {
+  return function XTick({ x, y, payload }: { x: number; y: number; payload: { value: number } }) {
+    const ms     = payload.value
+    const msFmt  = fmtTime(ms)
+    const utcFmt = new Date(ms + utcOffset).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    return (
+      <g transform={`translate(${x},${y})`}>
+        <text textAnchor="middle" fill="#94a3b8" fontSize={11} y={4}>{msFmt}</text>
+        <text textAnchor="middle" fill="#94a3b8" fontSize={9}  y={17} opacity={0.65}>{utcFmt}</text>
+      </g>
+    )
+  }
+}
+
 export default function ChartCard({ title, data, dataKey, color, unit, domain, showBrush }: Props) {
+  const utcOffset = useMemo(() => {
+    if (data.length === 0) return 0
+    const f = data[0] as ECUFrame & { timestamp_ms: number }
+    return new Date(f.timestamp).getTime() - f.timestamp_ms
+  }, [data])
+  const XTick = useMemo(() => makeXTick(utcOffset), [utcOffset])
+
   return (
     <div
       className="bg-ev-panel border border-ev-border rounded-xl p-5 shadow-sm"
@@ -53,9 +77,9 @@ export default function ChartCard({ title, data, dataKey, color, unit, domain, s
             type="number"
             scale="linear"
             domain={["dataMin", "dataMax"]}
-            tickFormatter={fmtTime}
             minTickGap={30}
-            tick={{ fill: "#94a3b8", fontSize: 11 }}
+            tick={XTick}
+            height={36}
           />
           <YAxis
             domain={domain}

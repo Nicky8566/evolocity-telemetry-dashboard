@@ -137,8 +137,8 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
                 synthetic:       true,
                 avg_voltage:     0,
                 avg_current:     0,
-                avg_power:       null,
-                avg_energy:      null,
+                avg_power:       0,
+                avg_energy:      0,
               }
               const latestMs = zeroMs
               const cutoff   = latestMs - STORE_WINDOW_MS
