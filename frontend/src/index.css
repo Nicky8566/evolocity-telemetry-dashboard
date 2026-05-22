@@ -25,3 +25,16 @@
 .recharts-brush-traveller rect  { fill: #000 !important; stroke: #000 !important; }
 .recharts-brush-traveller line  { stroke: #000 !important; }
 .recharts-brush-texts text      { fill: #000 !important; font-size: 11px; }
+
+/* Scrollbar that fades in on hover/interaction (Webkit + Firefox) */
+.scrollbar-hover                 { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+.scrollbar-hover:hover,
+.scrollbar-hover:focus-within,
+.scrollbar-hover:active          { scrollbar-color: rgba(100, 116, 139, 0.5) transparent; }
+.scrollbar-hover::-webkit-scrollbar         { width: 8px; height: 8px; }
+.scrollbar-hover::-webkit-scrollbar-track   { background: transparent; }
+.scrollbar-hover::-webkit-scrollbar-thumb   { background: transparent; border-radius: 4px; transition: background 150ms; }
+.scrollbar-hover:hover::-webkit-scrollbar-thumb,
+.scrollbar-hover:focus-within::-webkit-scrollbar-thumb,
+.scrollbar-hover:active::-webkit-scrollbar-thumb { background: rgba(100, 116, 139, 0.5); }
+.scrollbar-hover::-webkit-scrollbar-thumb:hover  { background: rgba(100, 116, 139, 0.75); }

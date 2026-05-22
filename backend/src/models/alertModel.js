@@ -20,6 +20,7 @@ export const alertDDL = `
     started_at  TEXT NOT NULL,
     ended_at    TEXT,
     duration_ms INTEGER,
+    metric      TEXT NOT NULL DEFAULT 'power',
     type        TEXT NOT NULL DEFAULT 'warning'
   )
 `;

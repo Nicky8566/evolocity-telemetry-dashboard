@@ -31,9 +31,15 @@ const EVENT_LABELS: Record<string, string> = {
 const POWER_LIMIT_MIN     = 0;
 const POWER_LIMIT_MAX     = 2500;
 const POWER_LIMIT_PRESETS = [350, 2000];
+const CURRENT_LIMIT_MIN   = 0;
+const CURRENT_LIMIT_MAX   = 100;
 
 function defaultPowerLimit(team: Team) {
   return team.power_limit ?? (team.vehicle_class.toLowerCase() === "standard" ? 350 : 2000);
+}
+
+function defaultCurrentLimit(team: Team) {
+  return team.current_limit ?? 100;
 }
 
 export default function Dashboard() {
@@ -52,6 +58,9 @@ export default function Dashboard() {
   const [powerLimitDraft, setPowerLimitDraft]     = useState(2000);
   const [dirtyPowerTeamId, setDirtyPowerTeamId]   = useState<number | null>(null);
   const [powerLimitStatus, setPowerLimitStatus]   = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [currentLimitDraft, setCurrentLimitDraft]   = useState(100);
+  const [dirtyCurrentTeamId, setDirtyCurrentTeamId] = useState<number | null>(null);
+  const [currentLimitStatus, setCurrentLimitStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   const [tab, setTab]                   = useState<"live" | "history">("live");
   const [historyFrames, setHistoryFrames] = useState<ECUFrame[]>([]);
@@ -79,6 +88,7 @@ export default function Dashboard() {
             if (refreshed && (
               refreshed.ecu_serial  !== current.ecu_serial  ||
               refreshed.power_limit !== current.power_limit ||
+              refreshed.current_limit !== current.current_limit ||
               refreshed.team_name   !== current.team_name
             )) setSelectedTeam(refreshed);
           }
@@ -94,6 +104,7 @@ export default function Dashboard() {
           if (refreshed && (
             refreshed.ecu_serial  !== current.ecu_serial  ||
             refreshed.power_limit !== current.power_limit ||
+            refreshed.current_limit !== current.current_limit ||
             refreshed.team_name   !== current.team_name
           )) setSelectedTeam(refreshed);
         }
@@ -106,8 +117,11 @@ export default function Dashboard() {
   useEffect(() => {
     if (!selectedTeam) return;
     setPowerLimitDraft(defaultPowerLimit(selectedTeam));
+    setCurrentLimitDraft(defaultCurrentLimit(selectedTeam));
     setDirtyPowerTeamId(null);
+    setDirtyCurrentTeamId(null);
     setPowerLimitStatus("idle");
+    setCurrentLimitStatus("idle");
     setTab("live");
     setHistoryFrames([]);
     setHistoryError(false);
@@ -175,6 +189,18 @@ export default function Dashboard() {
     return () => window.clearTimeout(t);
   }, [dirtyPowerTeamId, powerLimitDraft, selectedTeam?.id]);
 
+  useEffect(() => {
+    if (!selectedTeam || dirtyCurrentTeamId !== selectedTeam.id) return;
+    setCurrentLimitStatus("saving");
+    const t = window.setTimeout(() => {
+      teamsApi
+        .updateCurrentLimit(selectedTeam.id, currentLimitDraft)
+        .then(() => { updateTeamCurrentLimitInState(selectedTeam.id, currentLimitDraft); setCurrentLimitStatus("saved"); })
+        .catch(() => setCurrentLimitStatus("error"));
+    }, 250);
+    return () => window.clearTimeout(t);
+  }, [dirtyCurrentTeamId, currentLimitDraft, selectedTeam?.id]);
+
   function handleUnassignTeam(team: Team) {
     if (!competition) return;
     competitionsApi.unassignTeam(competition.id, team.id).then(() => {
@@ -191,12 +217,25 @@ export default function Dashboard() {
     setSelectedTeam((p) => p?.id === teamId ? up(p) : p);
   }
 
+  function updateTeamCurrentLimitInState(teamId: number, currentLimit: number) {
+    const up = (t: Team) => t.id === teamId ? { ...t, current_limit: currentLimit } : t;
+    setAllTeams((p) => p.map(up));
+    setCompetition((p) => p ? { ...p, teams: p.teams.map(up) } : p);
+    setSelectedTeam((p) => p?.id === teamId ? up(p) : p);
+  }
+
   function setPowerLimit(val: number) {
     const clamped = Math.max(POWER_LIMIT_MIN, Math.min(POWER_LIMIT_MAX, Math.round(val)));
     setPowerLimitDraft(clamped);
     setDirtyPowerTeamId(selectedTeam?.id ?? null);
   }
 
+  function setCurrentLimit(val: number) {
+    const clamped = Math.max(CURRENT_LIMIT_MIN, Math.min(CURRENT_LIMIT_MAX, Math.round(val)));
+    setCurrentLimitDraft(clamped);
+    setDirtyCurrentTeamId(selectedTeam?.id ?? null);
+  }
+        
   const liveFrames = useMemo(
     () => (boardId ? (boardData[boardId] ?? []) : []),
     [boardData, boardId],
@@ -288,36 +327,53 @@ export default function Dashboard() {
               <StatCard label="Energy"  value={latestFrame?.avg_energy?.toFixed(5)  ?? null} unit="Wh" accentClass="border-t-green-500" />
             </div>
 
-            {/* Run controls — only when viewing a team inside a competition */}
-            {competition && (
-              <RunControls team={selectedTeam} competition={competition} />
-            )}
+            {/* Limit controls */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+              <div className="bg-ev-panel border border-ev-border rounded-xl p-5 flex flex-col gap-4 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Power Limit</p>
+                    <p className="text-sm text-slate-500 mt-1">Alerts trigger when live power exceeds this team's limit.</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-slate-900 tabular-nums">{powerLimitDraft}W</p>
+                    <p className={["text-xs", powerLimitStatus === "error" ? "text-red-500" : powerLimitStatus === "saving" ? "text-slate-400" : "text-slate-500"].join(" ")}>
+                      {powerLimitStatus === "saving" ? "Saving..." : powerLimitStatus === "error" ? "Save failed" : "Applied to alert threshold"}
+                    </p>
+                  </div>
+                </div>
+                <input type="range" min={POWER_LIMIT_MIN} max={POWER_LIMIT_MAX} step={10} value={powerLimitDraft} onChange={(e) => setPowerLimit(Number(e.target.value))} className="w-full accent-ev-orange" />
+                <div className="flex items-center justify-between text-xs text-slate-400">
+                  <span>{POWER_LIMIT_MIN}W</span>
+                  <span>{POWER_LIMIT_MAX}W</span>
+                </div>
+                <div className="flex gap-2">
+                  {POWER_LIMIT_PRESETS.map((p) => (
+                    <button key={p} onClick={() => setPowerLimit(p)} className="px-3 py-2 rounded-lg border border-ev-border text-sm font-semibold text-slate-700 hover:border-ev-orange/50 hover:text-ev-orange transition-colors">
+                      {p}W
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-            {/* Power limit */}
-            <div className="bg-ev-panel border border-ev-border rounded-xl p-5 flex flex-col gap-4 shadow-sm">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Power Limit</p>
-                  <p className="text-sm text-slate-500 mt-1">Alerts trigger when live power exceeds this team's limit.</p>
+              <div className="bg-ev-panel border border-ev-border rounded-xl p-5 flex flex-col gap-4 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Current Limit</p>
+                    <p className="text-sm text-slate-500 mt-1">Notifications trigger when live current exceeds this team's limit.</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-slate-900 tabular-nums">{currentLimitDraft}A</p>
+                    <p className={["text-xs", currentLimitStatus === "error" ? "text-red-500" : currentLimitStatus === "saving" ? "text-slate-400" : "text-slate-500"].join(" ")}>
+                      {currentLimitStatus === "saving" ? "Saving..." : currentLimitStatus === "error" ? "Save failed" : "Applied to alert threshold"}
+                    </p>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-2xl font-bold text-slate-900 tabular-nums">{powerLimitDraft}W</p>
-                  <p className={["text-xs", powerLimitStatus === "error" ? "text-red-500" : powerLimitStatus === "saving" ? "text-slate-400" : "text-slate-500"].join(" ")}>
-                    {powerLimitStatus === "saving" ? "Saving..." : powerLimitStatus === "error" ? "Save failed" : "Applied to alert threshold"}
-                  </p>
+                <input type="range" min={CURRENT_LIMIT_MIN} max={CURRENT_LIMIT_MAX} step={1} value={currentLimitDraft} onChange={(e) => setCurrentLimit(Number(e.target.value))} className="w-full accent-ev-cyan" />
+                <div className="flex items-center justify-between text-xs text-slate-400">
+                  <span>{CURRENT_LIMIT_MIN}A</span>
+                  <span>{CURRENT_LIMIT_MAX}A</span>
                 </div>
-              </div>
-              <input type="range" min={POWER_LIMIT_MIN} max={POWER_LIMIT_MAX} step={10} value={powerLimitDraft} onChange={(e) => setPowerLimit(Number(e.target.value))} className="w-full accent-ev-orange" />
-              <div className="flex items-center justify-between text-xs text-slate-400">
-                <span>{POWER_LIMIT_MIN}W</span>
-                <span>{POWER_LIMIT_MAX}W</span>
-              </div>
-              <div className="flex gap-2">
-                {POWER_LIMIT_PRESETS.map((p) => (
-                  <button key={p} onClick={() => setPowerLimit(p)} className="px-3 py-2 rounded-lg border border-ev-border text-sm font-semibold text-slate-700 hover:border-ev-orange/50 hover:text-ev-orange transition-colors">
-                    {p}W
-                  </button>
-                ))}
               </div>
             </div>
 
@@ -398,27 +454,37 @@ export default function Dashboard() {
                 ) : (
                   <>
                     <ChartCard title="Voltage" data={displayFrames} dataKey="avg_voltage" color="#00a5c8" unit="V" domain={[0, 60]}             showBrush={tab === "history"} />
-                    <ChartCard title="Current" data={displayFrames} dataKey="avg_current" color="#ec9c2c" unit="A" domain={[0, 10]}             showBrush={tab === "history"} />
+                    <ChartCard title="Current" data={displayFrames} dataKey="avg_current" color="#ec9c2c" unit="A" domain={[0, CURRENT_LIMIT_MAX]} showBrush={tab === "history"} />
                     <ChartCard title="Power"   data={displayFrames} dataKey="avg_power"   color="#6366f1" unit="W" domain={[0, POWER_LIMIT_MAX]} showBrush={tab === "history"} />
                   </>
                 )}
               </div>
             </div>
+            {/* Judge controls — both cards share a fixed height so the row stays aligned;
+                Run Control gets most of the width since it has more controls. */}
+            <div className="grid grid-cols-1 lg:grid-cols-[5fr_2fr] gap-3">
+              {competition ? (
+                <RunControls team={selectedTeam} competition={competition} />
+              ) : (
+                <div className="bg-ev-panel border border-ev-border rounded-xl p-5 text-sm text-slate-400 shadow-sm h-96">
+                  Run Control is available when viewing a team inside a competition.
+                </div>
+              )}
 
-            {/* Alerts */}
-            <div className="bg-ev-panel border border-ev-border rounded-xl p-5 flex flex-col gap-3 shadow-sm">
-              <div className="flex items-center justify-between">
-                <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Events</p>
-                {teamAlerts.length > 0 && (
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-500/20 text-red-400">{teamAlerts.length}</span>
-                )}
-              </div>
-              <div className="flex flex-col gap-2 overflow-y-auto max-h-56">
-                {teamAlerts.length === 0 ? (
-                  <p className="text-slate-600 text-sm">No power breach events</p>
-                ) : (
-                  teamAlerts.map((alert) => <AlertCard key={alert.id} alert={alert} teams={teams} />)
-                )}
+              <div className="bg-ev-panel border border-ev-border rounded-xl p-5 flex flex-col gap-3 shadow-sm h-96 min-h-0">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Events</p>
+                  {teamAlerts.length > 0 && (
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">{teamAlerts.length}</span>
+                  )}
+                </div>
+                <div className="flex flex-col gap-2 overflow-y-auto flex-1 min-h-0">
+                  {teamAlerts.length === 0 ? (
+                    <p className="text-slate-600 text-sm">No power or current breach events</p>
+                  ) : (
+                    teamAlerts.map((alert) => <AlertCard key={alert.id} alert={alert} teams={teams} />)
+                  )}
+                </div>
               </div>
             </div>
           </>
@@ -426,12 +492,12 @@ export default function Dashboard() {
       </div>
 
       {/* ── Team panel ───────────────────────────────────────────────── */}
-      <aside className="w-48 shrink-0 flex flex-col gap-4 order-last border-l border-ev-cyan/30 pl-6">
+      <aside className="w-48 shrink-0 flex flex-col gap-4 order-last border-l border-ev-cyan/30 pl-6 sticky top-[5.25rem] self-start h-[calc(100vh-7.25rem)]">
         <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Teams</p>
-        <div className="flex flex-col gap-1 overflow-y-auto flex-1">
-          <button onClick={() => setShowCreateTeam(true)} className="text-left px-3 py-2.5 rounded-lg border border-dashed border-ev-cyan/40 text-ev-cyan text-sm hover:bg-ev-cyan/5 transition-colors">
-            + Add Team
-          </button>
+        <button onClick={() => setShowCreateTeam(true)} className="text-left px-3 py-2.5 rounded-lg border border-dashed border-ev-cyan/40 text-ev-cyan text-sm hover:bg-ev-cyan/5 transition-colors shrink-0">
+          + Add Team
+        </button>
+        <div className="scrollbar-hover flex flex-col gap-1 overflow-y-auto flex-1 min-h-0">
           {teams.length === 0 ? (
             <p className="text-slate-500 text-xs px-3 pt-1">No teams registered</p>
           ) : (

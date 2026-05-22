@@ -7,6 +7,7 @@ import { broadcastAlert } from '../../websocket.js';
 
 // ecu_serial → { alertId, startedAt, startedMs, peakPower, escalated }
 const activeBreaches = new Map();
+const activeCurrentBreaches = new Map();
 
 // Frames arrive at 10Hz — each covers 0.1s
 const FRAME_DURATION_HOURS = 0.1 / 3600;
@@ -66,6 +67,13 @@ function getPowerLimit(ecu_serial) {
   return teams[0].vehicle_class?.toLowerCase() === 'standard' ? 350 : 2000;
 }
 
+function getCurrentLimit(ecu_serial) {
+  const teams = getTeamByEcu(ecu_serial);
+  if (teams.length === 0) return 100;
+  if (teams[0].current_limit != null) return teams[0].current_limit;
+  return 100;
+}
+
 function computeAverages(payload) {
   const { voltage_samples, current_samples, power_samples } = payload;
 
@@ -88,10 +96,13 @@ function computeAverages(payload) {
 
 // timestamp_ms = device uptime ms — used for duration accuracy across reconnection dumps
 // received_at_ms = server epoch ms — used for alert ISO timestamps and live detection
-function checkBreach(ecu_serial, avg_power, timestamp_ms, received_at_ms) {
+function checkBreach(ecu_serial, avg_power, avg_current, timestamp_ms, received_at_ms) {
   const powerLimit   = getPowerLimit(ecu_serial);
+  const currentLimit = getCurrentLimit(ecu_serial);
   const overLimit    = avg_power >= powerLimit;
+  const overCurrentLimit = avg_current >= currentLimit;
   const wasBreaching = activeBreaches.has(ecu_serial);
+  const wasCurrentBreaching = activeCurrentBreaches.has(ecu_serial);
 
   if (overLimit && !wasBreaching) {
     const startedAt = new Date(received_at_ms).toISOString();
@@ -131,12 +142,31 @@ function checkBreach(ecu_serial, avg_power, timestamp_ms, received_at_ms) {
       }
     }
   }
+
+  if (overCurrentLimit && !wasCurrentBreaching) {
+    const startedAt = new Date(received_at_ms).toISOString();
+    const alertId   = insertAlert({ ecu_serial, power_value: avg_current, threshold: currentLimit, started_at: startedAt, metric: 'current', type: 'warning' });
+    activeCurrentBreaches.set(ecu_serial, { alertId, startedAt, startedMs: timestamp_ms, peakCurrent: avg_current });
+    broadcastAlert({ type: 'alert', data: getAlertById(alertId) });
+
+  } else if (overCurrentLimit && wasCurrentBreaching) {
+    const breach = activeCurrentBreaches.get(ecu_serial);
+    if (avg_current > breach.peakCurrent) breach.peakCurrent = avg_current;
+
+  } else if (!overCurrentLimit && wasCurrentBreaching) {
+    const breach     = activeCurrentBreaches.get(ecu_serial);
+    const endedAt    = new Date(received_at_ms).toISOString();
+    const durationMs = timestamp_ms - breach.startedMs;
+    updateAlertEnd(breach.alertId, breach.peakCurrent, endedAt, durationMs);
+    activeCurrentBreaches.delete(ecu_serial);
+    broadcastAlert({ type: 'alert', data: getAlertById(breach.alertId) });
+  }
 }
 
 function buildFrame(ecu_serial, boot_session, payload, timestamp, timestamp_ms, uptime_ms, received_at_ms) {
   const { scaled_voltage, scaled_current, scaled_power, avg_voltage, avg_current, avg_power, avg_energy } = computeAverages(payload);
 
-  checkBreach(ecu_serial, avg_power, timestamp_ms, received_at_ms);
+  checkBreach(ecu_serial, avg_power, avg_current, timestamp_ms, received_at_ms);
 
   insertECUFrame({
     ecu_serial,

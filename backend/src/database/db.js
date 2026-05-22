@@ -88,11 +88,13 @@ export async function initDb() {
 
   // Migrations for existing databases missing columns added after initial release
   try { db.run('ALTER TABLE teams ADD COLUMN power_limit INTEGER'); } catch (_) {}
+  try { db.run('ALTER TABLE teams ADD COLUMN current_limit INTEGER'); } catch (_) {}
   try { db.run('ALTER TABLE ecu_data ADD COLUMN avg_power REAL'); } catch (_) {}
   try { db.run('ALTER TABLE ecu_data ADD COLUMN avg_energy REAL'); } catch (_) {}
   try { db.run('ALTER TABLE ecu_data ADD COLUMN power_samples TEXT'); } catch (_) {}
   try { db.run('ALTER TABLE ecu_data ADD COLUMN uptime_ms INTEGER'); } catch (_) {}
   try { db.run('ALTER TABLE ecu_data ADD COLUMN boot_session INTEGER NOT NULL DEFAULT 0'); } catch (_) {}
+  try { db.run("ALTER TABLE alerts ADD COLUMN metric TEXT DEFAULT 'power'"); } catch (_) {}
   try { db.run("ALTER TABLE alerts ADD COLUMN type TEXT DEFAULT 'penalty'"); } catch (_) {}
   try { db.run("ALTER TABLE competitions ADD COLUMN event_type TEXT DEFAULT 'drag'"); } catch (_) {}
   try { db.run('ALTER TABLE competition_teams ADD COLUMN joined_at TEXT'); } catch (_) {}

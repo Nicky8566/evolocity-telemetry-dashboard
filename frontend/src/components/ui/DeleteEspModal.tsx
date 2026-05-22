@@ -14,18 +14,18 @@ interface CompetitionAssignment {
 }
 
 interface Props {
-  device:      EcuDevice
+  device:       EcuDevice
   assignedTeam: Team | null
-  competition: CompetitionAssignment | null
-  onCancel:    () => void
-  onConfirm:   (exportCsv: boolean, exportPdf: boolean) => Promise<void>
+  competitions: CompetitionAssignment[]
+  onCancel:     () => void
+  onConfirm:    (exportCsv: boolean, exportPdf: boolean) => Promise<void>
 }
 
 function minsAgo(iso: string) {
   return Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
 }
 
-export default function DeleteEspModal({ device, assignedTeam, competition, onCancel, onConfirm }: Props) {
+export default function DeleteEspModal({ device, assignedTeam, competitions, onCancel, onConfirm }: Props) {
   const [exportCsv, setExportCsv] = useState(false)
   const [exportPdf, setExportPdf] = useState(false)
   const [busy, setBusy]           = useState(false)
@@ -70,7 +70,8 @@ export default function DeleteEspModal({ device, assignedTeam, competition, onCa
               <span className="shrink-0 mt-0.5">⚠</span>
               <span>
                 This ESP is assigned to <strong>{assignedTeam.team_name}</strong>
-                {competition && <> in <strong>{competition.competition_name}</strong></>}.
+                {competitions.length === 1 && <> in <strong>{competitions[0].competition_name}</strong></>}
+                {competitions.length > 1 && <> in <strong>{competitions.map((c) => c.competition_name).join(", ")}</strong></>}.
                 Deleting it will unassign it and stop live telemetry for that team.
               </span>
             </div>
