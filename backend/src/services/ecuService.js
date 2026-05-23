@@ -5,23 +5,60 @@ import { getActiveRunForEcu } from '../database/runDb.js';
 import { applyPenalty } from './penaltyService.js';
 import { broadcastAlert } from '../../websocket.js';
 
-// ecu_serial → { alertId, startedAt, peakPower, escalated }
+// ecu_serial → { alertId, startedAt, startedMs, peakPower, escalated }
 const activeBreaches = new Map();
 const activeCurrentBreaches = new Map();
 
 // Frames arrive at 10Hz — each covers 0.1s
 const FRAME_DURATION_HOURS = 0.1 / 3600;
 
-// Breach held for >= 1s escalates from warning → penalty
+// Breach held for >= 1s (in device time) escalates from warning → penalty
 const PENALTY_THRESHOLD_MS = 1000;
 
-function scaleVoltage(millivolts) {
-  return (millivolts / 1000);
+// ─── Scaling helpers ──────────────────────────────────────────────────────────
+// Real ESP32 firmware sends integer sensor readings:
+//   voltage_samples : integer mV  (ADC * VOLTAGE_GAIN)
+//   current_samples : integer mA  (mv_to_current_ma())
+//   power_samples   : integer mW  ((voltage_mv * current_ma) / 1000, integer division)
+function scaleVoltage(mv)  { return mv  / 1000; }  // mV  → V
+function scaleCurrent(ma)  { return ma  / 1000; }  // mA  → A
+function scalePower(mw)    { return mw  / 1000; }  // mW  → W
+
+// ─── Session tracking ─────────────────────────────────────────────────────────
+// When an ESP32 reboots its uptime counter resets to 0, causing timestamp_ms
+// values that duplicate the previous session.  We detect this by watching for
+// a fresh uptime (< 10 s) after significant prior runtime (> 30 s) and increment
+// the boot_session counter.  The physical ecu_serial never changes — boot_session
+// is a separate field so team→device mappings remain intact across reboots and
+// the frontend can display "ESP-2 (1)" instead of a confusing large serial number.
+//
+// Dump frames sent on reconnection have large uptime values so they will NEVER
+// trigger this check — only a genuine near-zero uptime does.
+//
+// physical_serial → { lastUptime, bootCount }
+const deviceSessions = new Map();
+
+function getBootSession(physical_serial, uptime_ms) {
+  if (!deviceSessions.has(physical_serial)) {
+    deviceSessions.set(physical_serial, { lastUptime: uptime_ms, bootCount: 0 });
+    return 0;
+  }
+
+  const session = deviceSessions.get(physical_serial);
+
+  if (uptime_ms < 10_000 && session.lastUptime > 30_000) {
+    session.bootCount++;
+    console.log(
+      `[ECU ${physical_serial}] Reboot #${session.bootCount} detected ` +
+      `(uptime ${uptime_ms} ms after ${session.lastUptime} ms)`
+    );
+  }
+
+  session.lastUptime = uptime_ms;
+  return session.bootCount;
 }
 
-function scaleCurrent(current) {
-  return (current / 1000);
-}
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function getPowerLimit(ecu_serial) {
   const teams = getTeamByEcu(ecu_serial);
@@ -37,15 +74,29 @@ function getCurrentLimit(ecu_serial) {
   return 100;
 }
 
-export function processECUFrame(payload) {
-  const { ecu_serial, timestamp, voltage_samples, current_samples, power_samples, avg_power } = payload;
+function computeAverages(payload) {
+  const { voltage_samples, current_samples, power_samples } = payload;
 
   const scaled_voltage = voltage_samples.map(scaleVoltage);
   const avg_voltage    = scaled_voltage.reduce((s, v) => s + v, 0) / scaled_voltage.length;
+
   const scaled_current = current_samples.map(scaleCurrent);
   const avg_current    = scaled_current.reduce((s, v) => s + v, 0) / scaled_current.length;
-  const avg_energy     = avg_power * FRAME_DURATION_HOURS; // Wh delta for this frame
 
+  // Scale mW → W if the firmware provided power samples; otherwise derive from V * A
+  const scaled_power = power_samples ? power_samples.map(scalePower) : null;
+  const avg_power    = scaled_power
+    ? scaled_power.reduce((s, p) => s + p, 0) / scaled_power.length
+    : avg_voltage * avg_current;
+
+  const avg_energy = avg_power * FRAME_DURATION_HOURS;
+
+  return { scaled_voltage, scaled_current, scaled_power, avg_voltage, avg_current, avg_power, avg_energy };
+}
+
+// timestamp_ms = device uptime ms — used for duration accuracy across reconnection dumps
+// received_at_ms = server epoch ms — used for alert ISO timestamps and live detection
+function checkBreach(ecu_serial, avg_power, avg_current, timestamp_ms, received_at_ms) {
   const powerLimit   = getPowerLimit(ecu_serial);
   const currentLimit = getCurrentLimit(ecu_serial);
   const overLimit    = avg_power >= powerLimit;
@@ -54,34 +105,28 @@ export function processECUFrame(payload) {
   const wasCurrentBreaching = activeCurrentBreaches.has(ecu_serial);
 
   if (overLimit && !wasBreaching) {
-    // Breach just started — open as warning
-    const startedAt = new Date().toISOString();
+    const startedAt = new Date(received_at_ms).toISOString();
     const alertId   = insertAlert({ ecu_serial, power_value: avg_power, threshold: powerLimit, started_at: startedAt, type: 'warning' });
-    activeBreaches.set(ecu_serial, { alertId, startedAt, peakPower: avg_power, escalated: false });
+    activeBreaches.set(ecu_serial, { alertId, startedAt, startedMs: timestamp_ms, peakPower: avg_power, escalated: false });
     broadcastAlert({ type: 'alert', data: getAlertById(alertId) });
 
   } else if (overLimit && wasBreaching) {
-    const breach    = activeBreaches.get(ecu_serial);
+    const breach = activeBreaches.get(ecu_serial);
     if (avg_power > breach.peakPower) breach.peakPower = avg_power;
-
-    // Escalate to penalty once breach has held for >= 1s
-    if (!breach.escalated && Date.now() - new Date(breach.startedAt).getTime() >= PENALTY_THRESHOLD_MS) {
+    if (!breach.escalated && timestamp_ms - breach.startedMs >= PENALTY_THRESHOLD_MS) {
       breach.escalated = true;
       updateAlertType(breach.alertId, 'penalty');
       broadcastAlert({ type: 'alert', data: getAlertById(breach.alertId) });
     }
 
   } else if (!overLimit && wasBreaching) {
-    // Breach ended — close the row
     const breach     = activeBreaches.get(ecu_serial);
-    const endedAt    = new Date().toISOString();
-    const durationMs = new Date(endedAt) - new Date(breach.startedAt);
+    const endedAt    = new Date(received_at_ms).toISOString();
+    const durationMs = timestamp_ms - breach.startedMs;
     updateAlertEnd(breach.alertId, breach.peakPower, endedAt, durationMs);
     activeBreaches.delete(ecu_serial);
     broadcastAlert({ type: 'alert', data: getAlertById(breach.alertId) });
 
-    // Rules RE.5.1.b: 5s base + 5s/sec in the Power Limiter's Penalty Zone.
-    // CR.3.4 says breaches <1s aren't penalised; that lines up with floor(ms/1000) being 0.
     const penaltySeconds = 5 * Math.floor(durationMs / 1000);
     if (penaltySeconds > 0) {
       const run = getActiveRunForEcu(ecu_serial, 'efficiency');
@@ -99,9 +144,9 @@ export function processECUFrame(payload) {
   }
 
   if (overCurrentLimit && !wasCurrentBreaching) {
-    const startedAt = new Date().toISOString();
+    const startedAt = new Date(received_at_ms).toISOString();
     const alertId   = insertAlert({ ecu_serial, power_value: avg_current, threshold: currentLimit, started_at: startedAt, metric: 'current', type: 'warning' });
-    activeCurrentBreaches.set(ecu_serial, { alertId, startedAt, peakCurrent: avg_current });
+    activeCurrentBreaches.set(ecu_serial, { alertId, startedAt, startedMs: timestamp_ms, peakCurrent: avg_current });
     broadcastAlert({ type: 'alert', data: getAlertById(alertId) });
 
   } else if (overCurrentLimit && wasCurrentBreaching) {
@@ -110,33 +155,57 @@ export function processECUFrame(payload) {
 
   } else if (!overCurrentLimit && wasCurrentBreaching) {
     const breach     = activeCurrentBreaches.get(ecu_serial);
-    const endedAt    = new Date().toISOString();
-    const durationMs = new Date(endedAt) - new Date(breach.startedAt);
+    const endedAt    = new Date(received_at_ms).toISOString();
+    const durationMs = timestamp_ms - breach.startedMs;
     updateAlertEnd(breach.alertId, breach.peakCurrent, endedAt, durationMs);
     activeCurrentBreaches.delete(ecu_serial);
     broadcastAlert({ type: 'alert', data: getAlertById(breach.alertId) });
   }
+}
 
-  const frame = {
+function buildFrame(ecu_serial, boot_session, payload, timestamp, timestamp_ms, uptime_ms, received_at_ms) {
+  const { scaled_voltage, scaled_current, scaled_power, avg_voltage, avg_current, avg_power, avg_energy } = computeAverages(payload);
+
+  checkBreach(ecu_serial, avg_power, avg_current, timestamp_ms, received_at_ms);
+
+  insertECUFrame({
     ecu_serial,
+    boot_session,
     timestamp,
-    voltage_samples: scaled_voltage,
-    current_samples,
-    power_samples: power_samples ?? null,
+    uptime_ms:       uptime_ms ?? null,
+    voltage_samples: scaled_voltage,           // stored in V
+    current_samples: scaled_current,           // stored in A
+    power_samples:   scaled_power,             // stored in W (mW → W); null if not provided
     avg_voltage,
     avg_current,
     avg_power,
     avg_energy,
-  };
+  });
 
-  insertECUFrame(frame);
-
-  // Return only the fields the frontend needs
-  return { ecu_serial, timestamp, avg_voltage, avg_current, avg_power, avg_energy };
+  return { ecu_serial, boot_session, timestamp, timestamp_ms, uptime_ms: uptime_ms ?? null, received_at_ms, avg_voltage, avg_current, avg_power, avg_energy };
 }
 
-export function getECUHistory({ ecu_serial, from, limit } = {}) {
-  return getAllECUFrames({ ecu_serial, from, limit });
+// ─── Public entry point ───────────────────────────────────────────────────────
+
+export function processECUFrame(payload) {
+  const { ecu_serial } = payload;
+  const received_at_ms = Date.now();
+
+  if (typeof payload.timestamp === 'number') {
+    const uptime_ms    = payload.timestamp;
+    const boot_session = getBootSession(ecu_serial, uptime_ms);
+    const timestamp    = new Date(received_at_ms).toISOString(); // server receipt for exports
+    return [buildFrame(ecu_serial, boot_session, payload, timestamp, uptime_ms, uptime_ms, received_at_ms)];
+  }
+
+  // Simulator / NTP device — ISO string timestamp, always boot_session 0
+  const timestamp    = payload.timestamp;
+  const timestamp_ms = new Date(timestamp).getTime();
+  return [buildFrame(ecu_serial, 0, payload, timestamp, timestamp_ms, null, received_at_ms)];
+}
+
+export function getECUHistory({ ecu_serial, boot_session, from, limit } = {}) {
+  return getAllECUFrames({ ecu_serial, boot_session, from, limit });
 }
 
 export function getECUSerials() {

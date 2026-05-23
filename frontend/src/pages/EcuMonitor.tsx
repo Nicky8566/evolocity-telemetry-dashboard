@@ -7,6 +7,7 @@ import { teamsApi } from "../api/teams"
 import DeleteEspModal from "../components/ui/DeleteEspModal"
 import { useTelemetry } from "../context/TelemetryContext"
 import type { Team } from "../types"
+import { formatEspLabel } from "../types"
 import { downloadCsv } from "../utils/exportCsv"
 import { downloadPdf } from "../utils/exportPdf"
 
@@ -101,15 +102,22 @@ export default function EcuMonitor() {
     return () => { if (autoRefreshRef.current !== null) window.clearInterval(autoRefreshRef.current) }
   }, [autoRefresh])
 
-  // Live telemetry snapshot per serial
+  // Live telemetry snapshot per serial — boardId format "ECU-{serial}-{boot_session}".
+  // We key by ecu_serial and keep the latest (highest boot_session) entry so that
+  // the device card always reflects the most recent boot session's live state.
   const liveData = useMemo(() => {
     const map: Record<number, { last: (typeof boardData)[string][number]; isLive: boolean }> = {}
     for (const [boardId, frames] of Object.entries(boardData)) {
-      const serial = parseInt(boardId.replace("ECU-", ""))
-      const last   = frames.at(-1)
-      if (last) {
-        const isLive = last.avg_voltage > 0 && Date.now() - new Date(last.timestamp).getTime() < 5000
-        map[serial]  = { last, isLive }
+      const parts  = boardId.split("-")           // ["ECU", serial, boot_session]
+      const serial = parseInt(parts[1] ?? "")
+      const boot   = parseInt(parts[2] ?? "0")
+      if (isNaN(serial)) continue
+      const last = frames.at(-1)
+      if (!last) continue
+      const isLive = last.avg_voltage > 0 && Date.now() - (last.received_at_ms ?? 0) < 5000
+      // Overwrite only if this boot_session is >= the one already stored
+      if (!map[serial] || boot >= (map[serial].last.boot_session ?? 0)) {
+        map[serial] = { last, isLive }
       }
     }
     return map
@@ -308,6 +316,7 @@ export default function EcuMonitor() {
             const { ecu_serial, last_recorded_at, total_frames } = device
             const status        = getStatus(ecu_serial)
             const live          = liveData[ecu_serial]
+            // Match by physical serial — team.ecu_serial is always the physical device serial
             const assignedTeam  = teams.find((t) => t.ecu_serial === ecu_serial) ?? null
             const compAssigns   = assignedTeam ? competitionMap.get(assignedTeam.id) ?? [] : []
             const busy          = assigning === ecu_serial
@@ -322,7 +331,7 @@ export default function EcuMonitor() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${STATUS_DOT[status]}`} />
-                    <span className="font-bold text-slate-900 text-base">ESP-{ecu_serial}</span>
+                    <span className="font-bold text-slate-900 text-base">{formatEspLabel(ecu_serial, live?.last.boot_session ?? 0)}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${STATUS_BADGE[status].className}`}>

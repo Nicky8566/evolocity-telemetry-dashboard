@@ -129,20 +129,53 @@ export default function Dashboard() {
     setDateTo("");
   }, [selectedTeam?.id]);
 
+  const teams = competition ? competition.teams : allTeams;
+
+  // Find the latest boot session's boardId for the selected team's physical ECU serial.
+  // After a device reboot the board key changes from "ECU-2-0" to "ECU-2-1", so we
+  // can't hard-code the session number — pick the highest boot_session available.
+  const boardId = useMemo(() => {
+    const phys = selectedTeam?.ecu_serial
+    if (!phys) return null
+    const matches = Object.keys(boardData)
+      .filter(k => {
+        const [, serial] = k.split("-")
+        return parseInt(serial) === phys
+      })
+      .sort((a, b) => {
+        const bootA = parseInt(a.split("-")[2] ?? "0")
+        const bootB = parseInt(b.split("-")[2] ?? "0")
+        return bootA - bootB
+      })
+    return matches.at(-1) ?? null
+  }, [selectedTeam?.ecu_serial, boardData]);
+
   // Fetch history when tab switches — scoped to this team + when they joined this competition
   useEffect(() => {
     if (tab !== "history" || !selectedTeam?.ecu_serial) return;
     setHistoryLoading(true);
     setHistoryError(false);
+    // Derive boot_session from the active boardId so history shows the correct
+    // session. boardId format: "ECU-{ecu_serial}-{boot_session}"
+    const boot_session = boardId ? parseInt(boardId.split("-")[2] ?? "0") : 0;
     ecuApi
       .history({
-        ecu_serial: selectedTeam.ecu_serial,
+        ecu_serial:   selectedTeam.ecu_serial,
+        boot_session,
         from: selectedTeam.joined_at ?? competition?.created_at,
       })
-      .then(({ data }) => setHistoryFrames(data))
+      .then(({ data }) => {
+        const frames = data.map(f => ({
+          ...f,
+          boot_session: f.boot_session ?? 0,
+          timestamp_ms: f.uptime_ms != null ? f.uptime_ms : new Date(f.timestamp).getTime(),
+        }))
+        frames.sort((a, b) => a.timestamp_ms - b.timestamp_ms)
+        setHistoryFrames(frames)
+      })
       .catch(() => setHistoryError(true))
       .finally(() => setHistoryLoading(false));
-  }, [tab, selectedTeam?.id, competition?.id]);
+  }, [tab, selectedTeam?.id, competition?.id, boardId]);
 
   useEffect(() => {
     if (!selectedTeam || dirtyPowerTeamId !== selectedTeam.id) return;
@@ -202,23 +235,26 @@ export default function Dashboard() {
     setCurrentLimitDraft(clamped);
     setDirtyCurrentTeamId(selectedTeam?.id ?? null);
   }
-
-  const teams   = competition ? competition.teams : allTeams;
-  const boardId = selectedTeam?.ecu_serial ? `ECU-${selectedTeam.ecu_serial}` : null;
-
+        
   const liveFrames = useMemo(
     () => (boardId ? (boardData[boardId] ?? []) : []),
     [boardData, boardId],
   );
 
+  // Live view shows a fixed 60-second rolling window relative to the latest
+  // frame's device timestamp_ms.  This keeps the chart readable regardless of
+  // how long the device has been running and avoids rendering thousands of points.
+  const LIVE_WINDOW_MS = 30_000;
+
   const filteredLiveFrames = useMemo(() => {
-    if (!dateFrom && !dateTo) return liveFrames;
+    if (liveFrames.length === 0) return liveFrames;
+    const latestMs = liveFrames[liveFrames.length - 1].timestamp_ms;
+    const cutoff   = latestMs - LIVE_WINDOW_MS;
+    const windowed = liveFrames.filter(f => f.timestamp_ms >= cutoff);
+    if (!dateFrom && !dateTo) return windowed;
     const from = dateFrom ? new Date(dateFrom).getTime() : 0;
     const to   = dateTo   ? new Date(dateTo).getTime()   : Infinity;
-    return liveFrames.filter((f) => {
-      const t = new Date(f.timestamp).getTime();
-      return t >= from && t <= to;
-    });
+    return windowed.filter(f => f.timestamp_ms >= from && f.timestamp_ms <= to);
   }, [liveFrames, dateFrom, dateTo]);
 
   const displayFrames = tab === "live" ? filteredLiveFrames : historyFrames;
@@ -466,10 +502,15 @@ export default function Dashboard() {
             <p className="text-slate-500 text-xs px-3 pt-1">No teams registered</p>
           ) : (
             teams.map((team) => {
-              const bid    = team.ecu_serial ? `ECU-${team.ecu_serial}` : null;
+              const bid = team.ecu_serial
+                ? Object.keys(boardData)
+                    .filter(k => parseInt(k.split("-")[1]) === team.ecu_serial)
+                    .sort((a, b) => parseInt(a.split("-")[2] ?? "0") - parseInt(b.split("-")[2] ?? "0"))
+                    .at(-1) ?? null
+                : null;
               const tframes = bid ? (boardData[bid] ?? []) : [];
               const last   = tframes.at(-1);
-              const isLive = last && last.avg_voltage > 0 && (Date.now() - new Date(last.timestamp).getTime()) < 5000;
+              const isLive = last && last.avg_voltage > 0 && (Date.now() - (last.received_at_ms ?? 0)) < 5000;
               const isDead = tframes.length > 0 && !isLive;
 
               return (
