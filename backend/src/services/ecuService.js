@@ -60,14 +60,14 @@ function getBootSession(physical_serial, uptime_ms) {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function getPowerLimit(ecu_serial) {
+export function getPowerLimit(ecu_serial) {
   const teams = getTeamByEcu(ecu_serial);
   if (teams.length === 0) return 2000;
   if (teams[0].power_limit != null) return teams[0].power_limit;
   return teams[0].vehicle_class?.toLowerCase() === 'standard' ? 350 : 2000;
 }
 
-function getCurrentLimit(ecu_serial) {
+export function getCurrentLimit(ecu_serial) {
   const teams = getTeamByEcu(ecu_serial);
   if (teams.length === 0) return 100;
   if (teams[0].current_limit != null) return teams[0].current_limit;
