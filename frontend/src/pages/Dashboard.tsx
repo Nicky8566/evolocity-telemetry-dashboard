@@ -405,23 +405,6 @@ export default function Dashboard() {
                     competition={competition}
                   />
                 )}
-                {tab === "live" && (
-                  <div className="flex items-end gap-2">
-                    <div className="flex flex-col gap-1">
-                      <label className="text-xs text-slate-500">From</label>
-                      <input type="datetime-local" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-white border border-ev-border rounded-lg px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-ev-cyan" />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <label className="text-xs text-slate-500">To</label>
-                      <input type="datetime-local" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-white border border-ev-border rounded-lg px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-ev-cyan" />
-                    </div>
-                    {(dateFrom || dateTo) && (
-                      <button onClick={() => { setDateFrom(""); setDateTo(""); }} className="py-1.5 px-3 text-xs text-slate-400 hover:text-white border border-ev-border rounded-lg transition-colors">
-                        Clear
-                      </button>
-                    )}
-                  </div>
-                )}
               </div>
 
               {/* Chart content */}
