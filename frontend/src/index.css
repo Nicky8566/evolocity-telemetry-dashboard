@@ -38,3 +38,11 @@
 .scrollbar-hover:focus-within::-webkit-scrollbar-thumb,
 .scrollbar-hover:active::-webkit-scrollbar-thumb { background: rgba(100, 116, 139, 0.5); }
 .scrollbar-hover::-webkit-scrollbar-thumb:hover  { background: rgba(100, 116, 139, 0.75); }
+
+.nav-toast-enter {
+  animation: navToastIn 150ms ease-out;
+}
+@keyframes navToastIn {
+  from { opacity: 0; transform: translateX(8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
