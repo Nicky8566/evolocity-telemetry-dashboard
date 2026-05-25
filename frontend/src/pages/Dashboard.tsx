@@ -360,7 +360,7 @@ export default function Dashboard() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Current Limit</p>
-                    <p className="text-sm text-slate-500 mt-1">Notifications trigger when live current exceeds this team's limit.</p>
+                    <p className="text-sm text-slate-500 mt-1">Alerts trigger when live current exceeds this team's limit.</p>
                   </div>
                   <div className="text-right">
                     <p className="text-2xl font-bold text-slate-900 tabular-nums">{currentLimitDraft}A</p>
