@@ -14,7 +14,7 @@ const FRAME_COLS: (keyof FrameInput)[] = [
 
 const FRAME_HEADERS: Record<string, string> = {
   timestamp:    "Timestamp (UTC)",
-  uptime_ms:    "Device Uptime (ms)",
+  uptime_ms:    "Device Timestamp (ms)",
   ecu_serial:   "ECU Serial",
   avg_voltage:  "Voltage (V)",
   avg_current:  "Current (A)",
