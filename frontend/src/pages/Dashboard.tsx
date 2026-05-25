@@ -69,7 +69,7 @@ function chartDomain(
   const rawMin = midpoint - paddedSpan / 2;
   const rawMax = midpoint + paddedSpan / 2;
   const step = niceStep(paddedSpan / 5);
-  const domainMin = Math.max(0, Math.floor(rawMin / step) * step);
+  const domainMin = min >= 0 ? Math.max(0, Math.floor(rawMin / step) * step) : Math.floor(rawMin / step) * step;
   const domainMax = Math.ceil(rawMax / step) * step;
 
   return domainMax > domainMin ? [domainMin, domainMax] : [0, config.minSpan];

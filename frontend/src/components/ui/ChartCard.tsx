@@ -4,6 +4,7 @@ import {
   CartesianGrid,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -98,6 +99,15 @@ export default function ChartCard({ title, data, dataKey, color, unit, domain, s
             tick={{ fill: "#94a3b8", fontSize: 11 }}
             tickFormatter={(v) => `${v}${unit}`}
           />
+          {domain[0] < 0 && domain[1] > 0 && (
+            <ReferenceLine
+              y={0}
+              stroke="#64748b"
+              strokeDasharray="5 4"
+              strokeWidth={1.5}
+              label={{ value: "0", position: "insideLeft", fill: "#64748b", fontSize: 11 }}
+            />
+          )}
           <Tooltip
             contentStyle={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8, boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }}
             labelStyle={{ color: "#64748b" }}
