@@ -2,6 +2,8 @@ import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 import type { Alert, Competition, ECUFrame, Team } from "../types"
 
+type FrameInput = Omit<ECUFrame, "timestamp_ms" | "synthetic">
+
 // Brand colours
 const CYAN   = [0,   165, 200] as [number, number, number]
 const DARK   = [15,  23,  42]  as [number, number, number]
@@ -24,7 +26,7 @@ function duration(ms: number | null) {
 }
 
 export function downloadPdf(
-  frames:      ECUFrame[],
+  frames:      FrameInput[],
   team:        Team | null,
   competition: Competition | null,
   alerts:      Alert[],
@@ -183,8 +185,8 @@ export function downloadPdf(
     doc.text("No telemetry data available.", mar, y + 4)
   } else {
     // Discover columns dynamically — future-proof for new ECUFrame fields
-    const knownCols: (keyof ECUFrame)[] = ["timestamp", "avg_voltage", "avg_current", "avg_power", "avg_energy"]
-    const extraCols = (Object.keys(frames[0]) as (keyof ECUFrame)[]).filter(
+    const knownCols: (keyof FrameInput)[] = ["timestamp", "avg_voltage", "avg_current", "avg_power", "avg_energy"]
+    const extraCols = (Object.keys(frames[0]) as (keyof FrameInput)[]).filter(
       (k) => !knownCols.includes(k) && k !== "ecu_serial",
     )
     const cols = [...knownCols, ...extraCols]

@@ -1,6 +1,8 @@
 import type { Alert, Competition, ECUFrame, Team } from "../types"
 
-const FRAME_COLS: (keyof ECUFrame)[] = [
+type FrameInput = Omit<ECUFrame, "timestamp_ms" | "synthetic">
+
+const FRAME_COLS: (keyof FrameInput)[] = [
   "timestamp",
   "uptime_ms",
   "ecu_serial",
@@ -34,7 +36,7 @@ function slugify(s: string) {
 }
 
 export function downloadCsv(
-  frames: ECUFrame[],
+  frames: FrameInput[],
   team: Team | null,
   competition: Competition | null,
   alerts: Alert[],
@@ -42,7 +44,7 @@ export function downloadCsv(
   // Discover any extra keys present in data beyond the known columns
   // (future-proofing: new ECUFrame fields are picked up automatically)
   const extraKeys = frames.length
-    ? (Object.keys(frames[0]) as (keyof ECUFrame)[]).filter(
+    ? (Object.keys(frames[0]) as (keyof FrameInput)[]).filter(
         (k) => !FRAME_COLS.includes(k),
       )
     : []

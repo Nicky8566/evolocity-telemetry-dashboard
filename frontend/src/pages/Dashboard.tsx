@@ -360,7 +360,7 @@ export default function Dashboard() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Current Limit</p>
-                    <p className="text-sm text-slate-500 mt-1">Notifications trigger when live current exceeds this team's limit.</p>
+                    <p className="text-sm text-slate-500 mt-1">Alerts trigger when live current exceeds this team's limit.</p>
                   </div>
                   <div className="text-right">
                     <p className="text-2xl font-bold text-slate-900 tabular-nums">{currentLimitDraft}A</p>
@@ -404,23 +404,6 @@ export default function Dashboard() {
                     team={selectedTeam}
                     competition={competition}
                   />
-                )}
-                {tab === "live" && (
-                  <div className="flex items-end gap-2">
-                    <div className="flex flex-col gap-1">
-                      <label className="text-xs text-slate-500">From</label>
-                      <input type="datetime-local" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-white border border-ev-border rounded-lg px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-ev-cyan" />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <label className="text-xs text-slate-500">To</label>
-                      <input type="datetime-local" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-white border border-ev-border rounded-lg px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-ev-cyan" />
-                    </div>
-                    {(dateFrom || dateTo) && (
-                      <button onClick={() => { setDateFrom(""); setDateTo(""); }} className="py-1.5 px-3 text-xs text-slate-400 hover:text-white border border-ev-border rounded-lg transition-colors">
-                        Clear
-                      </button>
-                    )}
-                  </div>
                 )}
               </div>
 

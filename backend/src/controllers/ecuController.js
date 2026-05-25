@@ -1,4 +1,4 @@
-import { processECUFrame, getECUHistory, getECUSerials as fetchSerials } from '../services/ecuService.js';
+import { processECUFrame, getECUHistory, getECUSerials as fetchSerials, getPowerLimit, getCurrentLimit } from '../services/ecuService.js';
 import { getECUStatusData, deleteECUBySerial } from '../database/ecuDb.js';
 import { broadcast } from '../../websocket.js';
 
@@ -55,4 +55,13 @@ export function deleteECU(req, res) {
   if (isNaN(serial)) return res.status(400).json({ error: 'Invalid ECU serial' });
   deleteECUBySerial(serial);
   res.json({ message: `ESP-${serial} and all its data deleted` });
+}
+
+export function getECUConfig(req, res) {
+  const serial = parseInt(req.params.ecu_serial);
+  if (isNaN(serial)) return res.status(400).json({ error: 'Invalid ECU serial' });
+  res.json({
+    power_limit:   getPowerLimit(serial),
+    current_limit: getCurrentLimit(serial),
+  });
 }
