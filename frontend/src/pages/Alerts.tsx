@@ -4,56 +4,77 @@ import { useTelemetry } from "../context/TelemetryContext"
 import { alertsApi } from "../api/alerts"
 import { teamsApi } from "../api/teams"
 import { competitionsApi } from "../api/competitions"
-import type { Alert, Competition, Team } from "../types"
+import type { Alert, Competition, CompetitionDetail, Team } from "../types"
 
 export default function Alerts() {
   const { alerts: liveAlerts } = useTelemetry()
 
   const [historicalAlerts, setHistoricalAlerts] = useState<Alert[]>([])
   const [teams, setTeams]                       = useState<Team[]>([])
-  const [competitions, setCompetitions]         = useState<Competition[]>([])
+  const [competitions, setCompetitions]         = useState<CompetitionDetail[]>([])
   const [selectedCompetition, setSelectedCompetition] = useState<string>("all")
   const [selectedTeam, setSelectedTeam]               = useState<string>("all")
   const [loading, setLoading]                         = useState(true)
 
-  // Fetch historical alerts, teams and competitions on mount
   useEffect(() => {
     Promise.all([
-      alertsApi.list({ limit: 200 }),
       teamsApi.list(),
       competitionsApi.list(),
     ])
-      .then(([alertsRes, teamsRes, competitionsRes]) => {
-        setHistoricalAlerts(alertsRes.data)
+      .then(async ([teamsRes, competitionsRes]) => {
         setTeams(teamsRes.data)
-        setCompetitions(competitionsRes.data)
+        const details = await Promise.all(
+          competitionsRes.data.map((c: Competition) => competitionsApi.getById(c.id).then(({ data }) => data))
+        )
+        setCompetitions(details)
       })
       .catch((err) => console.error("Failed to load alerts page data:", err))
-      .finally(() => setLoading(false))
   }, [])
 
-  // Merge live alerts with historical, deduplicate by id, keep newest first
+  useEffect(() => {
+    setLoading(true)
+    const params: { limit: number; competition_id?: number } = { limit: 1000 }
+    if (selectedCompetition !== "all") params.competition_id = parseInt(selectedCompetition)
+    alertsApi.list(params)
+      .then((res) => setHistoricalAlerts(res.data))
+      .catch((err) => console.error("Failed to load alerts:", err))
+      .finally(() => setLoading(false))
+  }, [selectedCompetition])
+
+  const compEcuSerials = useMemo(() => {
+    if (selectedCompetition === "all") return null
+    const comp = competitions.find((c) => String(c.id) === selectedCompetition)
+    if (!comp) return null
+    const serials = new Set<number>()
+    comp.teams.forEach((t) => { if (t.ecu_serial) serials.add(t.ecu_serial) })
+    return serials
+  }, [competitions, selectedCompetition])
+
   const allAlerts = useMemo<Alert[]>(() => {
     const seen = new Set<number>()
-    return [...liveAlerts, ...historicalAlerts].filter((a) => {
+    const live = compEcuSerials
+      ? liveAlerts.filter((a) => compEcuSerials.has(a.ecu_serial))
+      : liveAlerts
+    return [...live, ...historicalAlerts].filter((a) => {
       if (seen.has(a.id)) return false
       seen.add(a.id)
       return true
     })
-  }, [liveAlerts, historicalAlerts])
+  }, [liveAlerts, historicalAlerts, compEcuSerials])
 
-  // Teams visible under the selected competition
-  // (competition_id on team comes in Phase 3 — for now show all teams)
-  const filteredTeams = useMemo(
-    () => (selectedCompetition === "all" ? teams : teams),
-    [teams, selectedCompetition],
-  )
+  const filteredTeams = useMemo(() => {
+    if (selectedCompetition === "all") return teams
+    const comp = competitions.find((c) => String(c.id) === selectedCompetition)
+    if (!comp) return teams
+    const compTeamIds = new Set(comp.teams.map((t) => t.id))
+    return teams.filter((t) => compTeamIds.has(t.id))
+  }, [teams, competitions, selectedCompetition])
 
-  // Filter alerts by selected team → resolve via ecu_serial
   const visibleAlerts = useMemo(() => {
     if (selectedTeam === "all") return allAlerts
     const team = teams.find((t) => String(t.id) === selectedTeam)
     if (!team) return allAlerts
+    if (team.ecu_serial == null) return []
     return allAlerts.filter((a) => a.ecu_serial === team.ecu_serial)
   }, [allAlerts, selectedTeam, teams])
 
@@ -65,13 +86,13 @@ export default function Alerts() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3">
+      <div className="flex items-end gap-3">
         <div className="flex flex-col gap-1">
           <label className="text-xs text-slate-400 uppercase tracking-widest">Competition</label>
           <select
             value={selectedCompetition}
             onChange={(e) => { setSelectedCompetition(e.target.value); setSelectedTeam("all") }}
-            className="bg-ev-panel border border-ev-border rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-ev-cyan"
+            className="bg-ev-panel border border-ev-border rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-ev-cyan w-48 truncate"
           >
             <option value="all">All competitions</option>
             {competitions.map((c) => (
@@ -85,7 +106,7 @@ export default function Alerts() {
           <select
             value={selectedTeam}
             onChange={(e) => setSelectedTeam(e.target.value)}
-            className="bg-ev-panel border border-ev-border rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-ev-cyan"
+            className="bg-ev-panel border border-ev-border rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-ev-cyan w-48 truncate"
           >
             <option value="all">All teams</option>
             {filteredTeams.map((t) => (
@@ -95,15 +116,12 @@ export default function Alerts() {
         </div>
 
         {(selectedCompetition !== "all" || selectedTeam !== "all") && (
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-transparent uppercase tracking-widest">Clear</label>
-            <button
-              onClick={() => { setSelectedCompetition("all"); setSelectedTeam("all") }}
-              className="px-3 py-2 text-sm text-slate-400 border border-ev-border rounded-lg hover:border-ev-cyan hover:text-ev-cyan transition-colors"
-            >
-              Clear filters
-            </button>
-          </div>
+          <button
+            onClick={() => { setSelectedCompetition("all"); setSelectedTeam("all") }}
+            className="px-3 py-2 text-sm text-slate-400 border border-ev-border rounded-lg hover:border-ev-cyan hover:text-ev-cyan transition-colors"
+          >
+            Clear filters
+          </button>
         )}
       </div>
 
@@ -112,9 +130,9 @@ export default function Alerts() {
         <span className="text-slate-400 text-sm">
           {visibleAlerts.length} alert{visibleAlerts.length !== 1 ? "s" : ""}
         </span>
-        {liveAlerts.length > 0 && (
+        {visibleAlerts.some((a) => a.ended_at === null) && (
           <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-500/20 text-red-400">
-            {liveAlerts.length} live
+            {visibleAlerts.filter((a) => a.ended_at === null).length} active
           </span>
         )}
       </div>

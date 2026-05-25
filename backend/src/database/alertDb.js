@@ -41,6 +41,7 @@ export function getAlerts({ ecu_serial, competition_id, limit = 100 } = {}) {
       JOIN teams t ON t.ecu_serial = a.ecu_serial
       JOIN competition_teams ct ON ct.team_id = t.id
       WHERE ct.competition_id = ?
+      AND (ct.joined_at IS NULL OR a.started_at >= ct.joined_at)
       ${ecu_serial ? 'AND a.ecu_serial = ?' : ''}
       ORDER BY a.id DESC LIMIT ?
     `;
