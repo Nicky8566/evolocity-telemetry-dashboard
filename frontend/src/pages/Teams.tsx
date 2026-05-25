@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { competitionsApi } from "../api/competitions";
 import { teamsApi } from "../api/teams";
 import ConfigureTeamModal from "../components/ui/ConfigureTeamModal";
 import ConfirmUnassignModal from "../components/ui/ConfirmUnassignModal";
 import CreateTeamModal from "../components/ui/CreateTeamModal";
 import DeleteTeamModal from "../components/ui/DeleteTeamModal";
+import { useTelemetry } from "../context/TelemetryContext";
 import type { Competition, CompetitionDetail, Team } from "../types";
 
 const EVENT_LABELS: Record<string, string> = {
@@ -15,6 +17,7 @@ const EVENT_LABELS: Record<string, string> = {
 };
 
 export default function Teams() {
+  const { boardData } = useTelemetry();
   const [teams, setTeams] = useState<Team[]>([]);
   const [competitions, setCompetitions] = useState<CompetitionDetail[]>([]);
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
@@ -28,6 +31,7 @@ export default function Teams() {
   const [assignCompetitionId, setAssignCompetitionId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sidebarSearch, setSidebarSearch] = useState("");
 
   async function loadData() {
     try {
@@ -181,30 +185,25 @@ export default function Teams() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr] gap-4">
-            <section className="bg-ev-panel border border-ev-border rounded-xl p-5 flex flex-col gap-4 shadow-sm">
-              <div>
-                <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold mb-1">
-                  Team Details
-                </p>
-                <p className="text-lg font-semibold text-slate-900">
-                  {selectedTeam.team_name}
-                </p>
+          <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="rounded-xl border-t-2 border border-ev-border border-t-ev-cyan p-4 flex flex-col gap-1 bg-ev-panel shadow-sm">
+                <p className="text-xs text-slate-500 uppercase tracking-widest">Team ID</p>
+                <span className="text-xl font-bold tabular-nums text-slate-900">{selectedTeam.team_id}</span>
               </div>
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <Info label="Team ID" value={selectedTeam.team_id} />
-                <Info
-                  label="ESP"
-                  value={
-                    selectedTeam.ecu_serial
-                      ? `ESP-${selectedTeam.ecu_serial}`
-                      : "Unassigned"
-                  }
-                />
-                <Info label="Class" value={selectedTeam.vehicle_class} />
-                <Info label="Vehicle" value={selectedTeam.vehicle_type} />
+              <div className="rounded-xl border-t-2 border border-ev-border border-t-ev-orange p-4 flex flex-col gap-1 bg-ev-panel shadow-sm">
+                <p className="text-xs text-slate-500 uppercase tracking-widest">ESP</p>
+                <span className="text-xl font-bold tabular-nums text-slate-900">{selectedTeam.ecu_serial ? `ESP-${selectedTeam.ecu_serial}` : "Unassigned"}</span>
               </div>
-            </section>
+              <div className="rounded-xl border-t-2 border border-ev-border border-t-ev-blue p-4 flex flex-col gap-1 bg-ev-panel shadow-sm">
+                <p className="text-xs text-slate-500 uppercase tracking-widest">Class</p>
+                <span className="text-xl font-bold text-slate-900 capitalize">{selectedTeam.vehicle_class}</span>
+              </div>
+              <div className="rounded-xl border-t-2 border border-ev-border border-t-green-500 p-4 flex flex-col gap-1 bg-ev-panel shadow-sm">
+                <p className="text-xs text-slate-500 uppercase tracking-widest">Vehicle</p>
+                <span className="text-xl font-bold text-slate-900 capitalize">{selectedTeam.vehicle_type}</span>
+              </div>
+            </div>
 
             <section className="bg-ev-panel border border-ev-border rounded-xl p-5 flex flex-col gap-4 shadow-sm">
               <div>
@@ -220,7 +219,7 @@ export default function Teams() {
                 <select
                   value={assignCompetitionId}
                   onChange={(e) => setAssignCompetitionId(e.target.value)}
-                  className="min-w-0 flex-1 border border-ev-border rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-ev-cyan"
+                  className="min-w-0 flex-1 border border-ev-border rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:border-ev-cyan max-w-xs truncate"
                 >
                   <option value="">Choose competition…</option>
                   {assignableCompetitions.map((competition) => (
@@ -261,14 +260,22 @@ export default function Teams() {
                           {competition.event_types.map((e) => EVENT_LABELS[e] ?? e).join(" · ")}
                         </p>
                       </div>
-                      <button
-                        onClick={() =>
-                          setUnassignTarget({ team: selectedTeam, competition })
-                        }
-                        className="text-xs text-red-500 hover:text-red-600 transition-colors"
-                      >
-                        Unassign
-                      </button>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Link
+                          to={`/competitions/${competition.id}?team=${selectedTeam.id}`}
+                          className="text-xs text-ev-cyan hover:underline shrink-0"
+                        >
+                          View →
+                        </Link>
+                        <button
+                          onClick={() =>
+                            setUnassignTarget({ team: selectedTeam, competition })
+                          }
+                          className="text-xs px-3 py-1.5 rounded-lg border border-red-300 text-red-500 hover:bg-red-50 transition-colors"
+                        >
+                          Unassign
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -278,10 +285,17 @@ export default function Teams() {
         )}
       </div>
 
-      <aside className="w-48 shrink-0 flex flex-col gap-4 order-last border-l border-ev-cyan/30 pl-6 sticky top-[5.25rem] self-start h-[calc(100vh-7.25rem)]">
+      <aside className="w-48 shrink-0 flex flex-col gap-4 order-last border-l border-ev-cyan/30 pl-6 sticky top-[5.75rem] self-start h-[calc(100vh-7.75rem)]">
         <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">
           Teams
         </p>
+        <input
+          type="text"
+          placeholder="Search…"
+          value={sidebarSearch}
+          onChange={(e) => setSidebarSearch(e.target.value)}
+          className="w-full px-3 py-2 rounded-lg border border-ev-border text-sm text-slate-700 bg-white focus:outline-none focus:border-ev-cyan shrink-0"
+        />
         <button
           onClick={() => setShowCreate(true)}
           className="text-left px-3 py-2.5 rounded-lg border border-dashed border-ev-cyan/40 text-ev-cyan text-sm hover:bg-ev-cyan/5 transition-colors shrink-0"
@@ -294,7 +308,19 @@ export default function Teams() {
               No teams registered
             </p>
           ) : (
-            teams.map((team) => (
+            teams.filter((team) => team.team_name.toLowerCase().includes(sidebarSearch.toLowerCase())).map((team) => {
+              const bid = team.ecu_serial
+                ? Object.keys(boardData)
+                    .filter(k => parseInt(k.split("-")[1]) === team.ecu_serial)
+                    .sort((a, b) => parseInt(a.split("-")[2] ?? "0") - parseInt(b.split("-")[2] ?? "0"))
+                    .at(-1) ?? null
+                : null;
+              const tframes = bid ? (boardData[bid] ?? []) : [];
+              const last = tframes.at(-1);
+              const isLive = last && last.avg_voltage > 0 && (Date.now() - (last.received_at_ms ?? 0)) < 5000;
+              const isDead = tframes.length > 0 && !isLive;
+
+              return (
               <button
                 key={team.id}
                 onClick={() => setSelectedTeam(team)}
@@ -305,14 +331,18 @@ export default function Teams() {
                     : "border-transparent hover:bg-slate-100",
                 ].join(" ")}
               >
-                <p className="text-sm font-medium leading-tight text-slate-900">
-                  {team.team_name}
-                </p>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <div className="flex items-center gap-1.5">
+                  <span className={["w-2 h-2 rounded-full shrink-0", isLive ? "bg-green-400 animate-pulse" : isDead ? "bg-red-400" : "bg-slate-300"].join(" ")} />
+                  <p className="text-sm font-medium leading-tight text-slate-900">
+                    {team.team_name}
+                  </p>
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5 pl-3.5">
                   {team.ecu_serial ? `ESP-${team.ecu_serial}` : "No ESP"}
                 </p>
               </button>
-            ))
+              );
+            })
           )}
         </div>
       </aside>
@@ -362,15 +392,6 @@ export default function Teams() {
           onConfirm={handleDeleteTeam}
         />
       )}
-    </div>
-  );
-}
-
-function Info({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg bg-slate-50 border border-ev-border px-3 py-2">
-      <p className="text-xs text-slate-400 mb-0.5">{label}</p>
-      <p className="text-sm font-medium text-slate-900 capitalize">{value}</p>
     </div>
   );
 }
