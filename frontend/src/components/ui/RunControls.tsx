@@ -53,10 +53,14 @@ export default function RunControls({ team, competition, onRunsChanged }: Props)
 
   const ecuLive = useMemo(() => {
     if (team.ecu_serial == null) return false
-    const frames = boardData[`ECU-${team.ecu_serial}`] ?? []
+    const bid = Object.keys(boardData)
+      .filter(k => parseInt(k.split("-")[1]) === team.ecu_serial)
+      .sort((a, b) => parseInt(a.split("-")[2] ?? "0") - parseInt(b.split("-")[2] ?? "0"))
+      .at(-1)
+    const frames = bid ? (boardData[bid] ?? []) : []
     const last = frames.at(-1)
     if (!last) return false
-    return last.avg_voltage > 0 && now - new Date(last.timestamp).getTime() < LIVE_WINDOW_MS
+    return last.avg_voltage > 0 && now - (last.received_at_ms ?? 0) < LIVE_WINDOW_MS
   }, [boardData, team.ecu_serial, now])
 
   const noEcu        = team.ecu_serial == null
