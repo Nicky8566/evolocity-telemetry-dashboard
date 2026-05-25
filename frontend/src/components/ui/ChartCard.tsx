@@ -39,12 +39,23 @@ function fmtTime(ms: number): string {
 // Custom XAxis tick: device ms on top, UTC wall-clock below.
 // utcOffset = wall-clock epoch - device timestamp_ms, computed from first frame.
 function makeXTick(utcOffset: number) {
-  return function XTick({ x, y, payload }: { x: number; y: number; payload: { value: number } }) {
+  return function XTick({
+    x,
+    y,
+    payload,
+  }: {
+    x?: number | string
+    y?: number | string
+    payload?: { value: number }
+  }) {
+    const tickX = Number(x ?? 0)
+    const tickY = Number(y ?? 0)
+    if (!payload) return null
     const ms     = payload.value
     const msFmt  = fmtTime(ms)
     const utcFmt = new Date(ms + utcOffset).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
     return (
-      <g transform={`translate(${x},${y})`}>
+      <g transform={`translate(${tickX},${tickY})`}>
         <text textAnchor="middle" fill="#94a3b8" fontSize={11} y={4}>{msFmt}</text>
         <text textAnchor="middle" fill="#94a3b8" fontSize={9}  y={17} opacity={0.65}>{utcFmt}</text>
       </g>

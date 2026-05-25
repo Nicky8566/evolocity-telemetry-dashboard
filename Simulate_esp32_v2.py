@@ -19,7 +19,7 @@ Offline simulation:
   main loop simultaneously resumes sending live frames at 10 Hz.
 
 Usage:
-    python simulate_esp32.py
+    python Simulate_esp32_v2.py
 """
 
 import collections
