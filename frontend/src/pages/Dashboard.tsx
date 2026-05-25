@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { competitionsApi } from "../api/competitions";
 import { ecuApi } from "../api/ecu";
 import { teamsApi } from "../api/teams";
@@ -44,6 +44,8 @@ function defaultCurrentLimit(team: Team) {
 
 export default function Dashboard() {
   const { id } = useParams<{ id?: string }>();
+  const [searchParams] = useSearchParams();
+  const initialTeamId = useRef(searchParams.get("team") ? parseInt(searchParams.get("team")!) : null);
   const navigate = useNavigate();
   const { boardData, alerts } = useTelemetry();
 
@@ -68,6 +70,7 @@ export default function Dashboard() {
   const [historyError, setHistoryError]     = useState(false);
   const [dateFrom, setDateFrom]         = useState("");
   const [dateTo, setDateTo]             = useState("");
+  const [sidebarSearch, setSidebarSearch] = useState("");
 
   // Ref so loadTeams can read current selectedTeam without it being a dependency
   const selectedTeamRef = useRef(selectedTeam);
@@ -82,7 +85,9 @@ export default function Dashboard() {
           setRegisteredTeams(teamRows);
           const current = selectedTeamRef.current;
           if (data.teams.length > 0 && !current) {
-            setSelectedTeam(data.teams[0]);
+            const fromUrl = initialTeamId.current != null ? data.teams.find((t) => t.id === initialTeamId.current) : null;
+            initialTeamId.current = null;
+            setSelectedTeam(fromUrl ?? data.teams[0]);
           } else if (current) {
             const refreshed = data.teams.find((t) => t.id === current.id);
             if (refreshed && (
@@ -264,8 +269,12 @@ export default function Dashboard() {
     () => selectedTeam ? alerts.filter((a) => a.ecu_serial === selectedTeam.ecu_serial) : alerts,
     [alerts, selectedTeam],
   );
-  const activePenalty = useMemo(
-    () => teamAlerts.some((a) => a.type === "penalty" && a.ended_at === null),
+  const activePowerPenalty = useMemo(
+    () => teamAlerts.some((a) => a.type === "penalty" && a.ended_at === null && (a.metric ?? "power") === "power"),
+    [teamAlerts],
+  );
+  const activeCurrentPenalty = useMemo(
+    () => teamAlerts.some((a) => a.type === "penalty" && a.ended_at === null && a.metric === "current"),
     [teamAlerts],
   );
 
@@ -289,23 +298,21 @@ export default function Dashboard() {
                 ← Competitions
               </button>
             )}
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold text-slate-900">
-                {competition ? competition.name : "Dashboard"}
-              </h1>
-              {competition && (
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {competition.event_types.map((evt) => (
-                    <span key={evt} className={`text-xs px-2 py-0.5 rounded-full border font-medium capitalize ${EVENT_COLOURS[evt] ?? ""}`}>
-                      {EVENT_LABELS[evt] ?? evt}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
+            <h1 className="text-2xl font-bold text-slate-900 max-w-md break-words">
+              {competition ? competition.name : "Dashboard"}
+            </h1>
+            {competition && (
+              <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                {competition.event_types.map((evt) => (
+                  <span key={evt} className={`text-xs px-2 py-0.5 rounded-full border font-medium capitalize ${EVENT_COLOURS[evt] ?? ""}`}>
+                    {EVENT_LABELS[evt] ?? evt}
+                  </span>
+                ))}
+              </div>
+            )}
             <p className="text-slate-400 text-sm mt-0.5">
               {selectedTeam
-                ? `Viewing · ${selectedTeam.team_name} · ECU ${selectedTeam.ecu_serial ?? "unassigned"}`
+                ? `${selectedTeam.team_name} · ECU ${selectedTeam.ecu_serial ?? "unassigned"}`
                 : "Select a team from the panel to view telemetry"}
             </p>
           </div>
@@ -319,62 +326,60 @@ export default function Dashboard() {
           </div>
         ) : (
           <>
-            {/* Stats */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <StatCard label="Voltage" value={latestFrame?.avg_voltage?.toFixed(2) ?? null} unit="V"  accentClass="border-t-ev-cyan" />
-              <StatCard label="Current" value={latestFrame?.avg_current?.toFixed(2) ?? null} unit="A"  accentClass="border-t-ev-orange" />
-              <StatCard label="Power"   value={latestFrame?.avg_power?.toFixed(1)   ?? null} unit="W"  highlight={activePenalty} accentClass="border-t-ev-blue" />
-              <StatCard label="Energy"  value={latestFrame?.avg_energy?.toFixed(5)  ?? null} unit="Wh" accentClass="border-t-green-500" />
-            </div>
-
             {/* Limit controls */}
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-              <div className="bg-ev-panel border border-ev-border rounded-xl p-5 flex flex-col gap-4 shadow-sm">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Power Limit</p>
-                    <p className="text-sm text-slate-500 mt-1">Alerts trigger when live power exceeds this team's limit.</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-bold text-slate-900 tabular-nums">{powerLimitDraft}W</p>
-                    <p className={["text-xs", powerLimitStatus === "error" ? "text-red-500" : powerLimitStatus === "saving" ? "text-slate-400" : "text-slate-500"].join(" ")}>
-                      {powerLimitStatus === "saving" ? "Saving..." : powerLimitStatus === "error" ? "Save failed" : "Applied to alert threshold"}
+              <div className="bg-ev-panel border border-ev-border rounded-xl px-5 py-3 flex flex-col gap-2 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Current Limit</p>
+                  <div className="flex items-baseline gap-2">
+                    <p className="text-lg font-bold text-slate-900 tabular-nums">{currentLimitDraft}A</p>
+                    <p className={["text-xs", currentLimitStatus === "error" ? "text-red-500" : currentLimitStatus === "saving" ? "text-slate-400" : "text-slate-500"].join(" ")}>
+                      {currentLimitStatus === "saving" ? "Saving..." : currentLimitStatus === "error" ? "Save failed" : "Applied"}
                     </p>
                   </div>
                 </div>
-                <input type="range" min={POWER_LIMIT_MIN} max={POWER_LIMIT_MAX} step={10} value={powerLimitDraft} onChange={(e) => setPowerLimit(Number(e.target.value))} className="w-full accent-ev-orange" />
-                <div className="flex items-center justify-between text-xs text-slate-400">
-                  <span>{POWER_LIMIT_MIN}W</span>
-                  <span>{POWER_LIMIT_MAX}W</span>
+                <div>
+                  <input type="range" min={CURRENT_LIMIT_MIN} max={CURRENT_LIMIT_MAX} step={1} value={currentLimitDraft} onChange={(e) => setCurrentLimit(Number(e.target.value))} className="w-full accent-ev-orange" />
+                  <div className="flex items-center justify-between text-[10px] text-slate-400 -mt-1">
+                    <span>{CURRENT_LIMIT_MIN}A</span>
+                    <span>{CURRENT_LIMIT_MAX}A</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-ev-panel border border-ev-border rounded-xl px-5 py-3 flex flex-col gap-2 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Power Limit</p>
+                  <div className="flex items-baseline gap-2">
+                    <p className="text-lg font-bold text-slate-900 tabular-nums">{powerLimitDraft}W</p>
+                    <p className={["text-xs", powerLimitStatus === "error" ? "text-red-500" : powerLimitStatus === "saving" ? "text-slate-400" : "text-slate-500"].join(" ")}>
+                      {powerLimitStatus === "saving" ? "Saving..." : powerLimitStatus === "error" ? "Save failed" : "Applied"}
+                    </p>
+                  </div>
+                </div>
+                <div>
+                  <input type="range" min={POWER_LIMIT_MIN} max={POWER_LIMIT_MAX} step={10} value={powerLimitDraft} onChange={(e) => setPowerLimit(Number(e.target.value))} className="w-full accent-ev-blue" />
+                  <div className="flex items-center justify-between text-[10px] text-slate-400 -mt-1">
+                    <span>{POWER_LIMIT_MIN}W</span>
+                    <span>{POWER_LIMIT_MAX}W</span>
+                  </div>
                 </div>
                 <div className="flex gap-2">
                   {POWER_LIMIT_PRESETS.map((p) => (
-                    <button key={p} onClick={() => setPowerLimit(p)} className="px-3 py-2 rounded-lg border border-ev-border text-sm font-semibold text-slate-700 hover:border-ev-orange/50 hover:text-ev-orange transition-colors">
+                    <button key={p} onClick={() => setPowerLimit(p)} className="px-2.5 py-1 rounded-lg border border-ev-border text-xs font-semibold text-slate-700 hover:border-ev-blue/50 hover:text-ev-blue transition-colors">
                       {p}W
                     </button>
                   ))}
                 </div>
               </div>
+            </div>
 
-              <div className="bg-ev-panel border border-ev-border rounded-xl p-5 flex flex-col gap-4 shadow-sm">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Current Limit</p>
-                    <p className="text-sm text-slate-500 mt-1">Alerts trigger when live current exceeds this team's limit.</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-bold text-slate-900 tabular-nums">{currentLimitDraft}A</p>
-                    <p className={["text-xs", currentLimitStatus === "error" ? "text-red-500" : currentLimitStatus === "saving" ? "text-slate-400" : "text-slate-500"].join(" ")}>
-                      {currentLimitStatus === "saving" ? "Saving..." : currentLimitStatus === "error" ? "Save failed" : "Applied to alert threshold"}
-                    </p>
-                  </div>
-                </div>
-                <input type="range" min={CURRENT_LIMIT_MIN} max={CURRENT_LIMIT_MAX} step={1} value={currentLimitDraft} onChange={(e) => setCurrentLimit(Number(e.target.value))} className="w-full accent-ev-cyan" />
-                <div className="flex items-center justify-between text-xs text-slate-400">
-                  <span>{CURRENT_LIMIT_MIN}A</span>
-                  <span>{CURRENT_LIMIT_MAX}A</span>
-                </div>
-              </div>
+            {/* Stats */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <StatCard label="Voltage" value={latestFrame?.avg_voltage?.toFixed(2) ?? null} unit="V"  accentClass="border-t-ev-cyan" />
+              <StatCard label="Current" value={latestFrame?.avg_current?.toFixed(2) ?? null} unit="A"  highlight={activeCurrentPenalty} accentClass="border-t-ev-orange" />
+              <StatCard label="Power"   value={latestFrame?.avg_power?.toFixed(1)   ?? null} unit="W"  highlight={activePowerPenalty} accentClass="border-t-ev-blue" />
+              <StatCard label="Energy"  value={latestFrame?.avg_energy?.toFixed(5)  ?? null} unit="Wh" accentClass="border-t-green-500" />
             </div>
 
             {/* ── Graph box with internal tabs ─────────────────────── */}
@@ -475,8 +480,15 @@ export default function Dashboard() {
       </div>
 
       {/* ── Team panel ───────────────────────────────────────────────── */}
-      <aside className="w-48 shrink-0 flex flex-col gap-4 order-last border-l border-ev-cyan/30 pl-6 sticky top-[5.25rem] self-start h-[calc(100vh-7.25rem)]">
+      <aside className="w-48 shrink-0 flex flex-col gap-4 order-last border-l border-ev-cyan/30 pl-6 sticky top-[5.75rem] self-start h-[calc(100vh-7.75rem)]">
         <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Teams</p>
+        <input
+          type="text"
+          placeholder="Search…"
+          value={sidebarSearch}
+          onChange={(e) => setSidebarSearch(e.target.value)}
+          className="w-full px-3 py-2 rounded-lg border border-ev-border text-sm text-slate-700 bg-white focus:outline-none focus:border-ev-cyan shrink-0"
+        />
         <button onClick={() => setShowCreateTeam(true)} className="text-left px-3 py-2.5 rounded-lg border border-dashed border-ev-cyan/40 text-ev-cyan text-sm hover:bg-ev-cyan/5 transition-colors shrink-0">
           + Add Team
         </button>
@@ -484,7 +496,7 @@ export default function Dashboard() {
           {teams.length === 0 ? (
             <p className="text-slate-500 text-xs px-3 pt-1">No teams registered</p>
           ) : (
-            teams.map((team) => {
+            teams.filter((team) => team.team_name.toLowerCase().includes(sidebarSearch.toLowerCase())).map((team) => {
               const bid = team.ecu_serial
                 ? Object.keys(boardData)
                     .filter(k => parseInt(k.split("-")[1]) === team.ecu_serial)
