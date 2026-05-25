@@ -265,13 +265,13 @@ export default function EcuMonitor() {
       {/* Summary + search row */}
       <div className="flex items-center gap-3 flex-wrap">
         {[
-          { label: "Total ESPs",  value: devices.length, accent: "text-ev-cyan" },
-          { label: "Live now",    value: liveCount,       accent: "text-green-500" },
-          { label: "Unassigned",  value: unassignedCount, accent: "text-slate-400" },
-        ].map(({ label, value, accent }) => (
-          <div key={label} className="bg-ev-panel border border-ev-border rounded-xl px-5 py-3 flex flex-col gap-0.5">
-            <span className={`text-xs uppercase tracking-widest font-semibold ${accent}`}>{label}</span>
-            <span className="text-2xl font-bold text-slate-900 tabular-nums">{value}</span>
+          { label: "Total ESPs",  value: devices.length, border: "border-t-ev-cyan" },
+          { label: "Live now",    value: liveCount,       border: "border-t-green-500" },
+          { label: "Unassigned",  value: unassignedCount, border: "border-t-slate-400" },
+        ].map(({ label, value, border }) => (
+          <div key={label} className={`rounded-xl border-t-2 border border-ev-border ${border} p-4 flex flex-col gap-1 bg-ev-panel shadow-sm w-40`}>
+            <p className="text-xs text-slate-500 uppercase tracking-widest">{label}</p>
+            <span className="text-xl font-bold text-slate-900 tabular-nums">{value}</span>
           </div>
         ))}
 
@@ -406,29 +406,7 @@ export default function EcuMonitor() {
                       <div className="flex items-start justify-between">
                         <div className="min-w-0">
                           <p className="text-xs text-slate-400">Assigned to</p>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <p className="text-sm font-semibold text-slate-900">{assignedTeam.team_name}</p>
-                            <select
-                              disabled={busy}
-                              onChange={(e) => { if (e.target.value) handleAssign(ecu_serial, parseInt(e.target.value)); e.target.value = "" }}
-                              defaultValue=""
-                              className="text-xs border border-ev-border rounded-md px-1.5 py-0.5 text-slate-500 bg-white focus:outline-none focus:border-ev-cyan disabled:opacity-40"
-                            >
-                              <option value="" disabled>Reassign…</option>
-                              {teams.filter((t) => t.id !== assignedTeam.id).map((t) => (
-                                <option key={t.id} value={t.id}>
-                                  {t.team_name}{t.ecu_serial != null ? " (has ESP)" : ""}
-                                </option>
-                              ))}
-                            </select>
-                            <button
-                              onClick={() => setConfirmUnassign({ ecu_serial, teamName: assignedTeam.team_name })}
-                              disabled={busy}
-                              className="text-xs px-2.5 py-0.5 rounded-md border border-red-300 text-red-500 hover:bg-red-50 transition-colors disabled:opacity-40"
-                            >
-                              Unassign
-                            </button>
-                          </div>
+                          <p className="text-sm font-semibold text-slate-900 truncate">{assignedTeam.team_name}</p>
                           <p className="text-xs text-slate-400 mt-0.5 capitalize">
                             {assignedTeam.vehicle_class} · {assignedTeam.vehicle_type}
                           </p>
@@ -440,6 +418,26 @@ export default function EcuMonitor() {
                           </p>
                         </div>
                       </div>
+                      <select
+                        disabled={busy}
+                        onChange={(e) => { if (e.target.value) handleAssign(ecu_serial, parseInt(e.target.value)); e.target.value = "" }}
+                        defaultValue=""
+                        className="w-full py-1.5 px-2 rounded-lg border border-ev-border text-xs text-slate-600 bg-white focus:outline-none focus:border-ev-cyan disabled:opacity-40"
+                      >
+                        <option value="" disabled>Reassign…</option>
+                        {teams.filter((t) => t.id !== assignedTeam.id).map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.team_name}{t.ecu_serial != null ? " (has ESP)" : ""}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => setConfirmUnassign({ ecu_serial, teamName: assignedTeam.team_name })}
+                        disabled={busy}
+                        className="text-xs px-3 py-1.5 rounded-lg border border-red-300 text-red-500 hover:bg-red-50 transition-colors disabled:opacity-40 self-start"
+                      >
+                        Unassign
+                      </button>
                     </>
                   ) : (
                     <>
