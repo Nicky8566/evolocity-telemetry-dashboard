@@ -27,6 +27,7 @@ export default function Competitions() {
   const [selected, setSelected]           = useState<CompetitionDetail | null>(null)
   const [showCreate, setShowCreate]       = useState(false)
   const [loadingDetail, setLoadingDetail] = useState(false)
+  const [sidebarSearch, setSidebarSearch] = useState("")
 
   function loadCompetitions() {
     competitionsApi.list().then(({ data }) => setCompetitions(data)).catch(console.error)
@@ -71,7 +72,7 @@ export default function Competitions() {
 
         <div className="flex items-end justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">
+            <h1 className="text-2xl font-bold text-slate-900 max-w-md break-words">
               {selected ? selected.name : "Competitions"}
             </h1>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -116,16 +117,16 @@ export default function Competitions() {
           </div>
         ) : (
           <div className="bg-ev-panel border border-ev-border rounded-xl shadow-sm overflow-hidden">
-            <div className="grid grid-cols-[2.5rem_1fr_7rem_7rem_7rem_6rem_auto] gap-4 px-5 py-3 border-b border-ev-border">
+            <div className="grid grid-cols-[2rem_1fr_6rem_6rem_6rem_5.5rem_5.5rem] gap-x-6 px-5 py-3 border-b border-ev-border items-center">
               {["#", "Team", "Class", "Live Power", "Energy", "Status", ""].map((h) => (
-                <span key={h} className="text-xs text-slate-400 uppercase tracking-widest font-semibold">{h}</span>
+                <span key={h} className={`text-xs text-slate-400 uppercase tracking-widest font-semibold ${["Class", "Live Power", "Energy", "Status"].includes(h) ? "justify-self-center" : ""}`}>{h}</span>
               ))}
             </div>
             <div className="divide-y divide-ev-border">
               {teamRows.map(({ team, latest, totalEnergy, penalty, warning }, i) => (
                 <div
                   key={team.id}
-                  className="grid grid-cols-[2.5rem_1fr_7rem_7rem_7rem_6rem_auto] gap-4 px-5 py-3.5 items-center"
+                  className="grid grid-cols-[2rem_1fr_6rem_6rem_6rem_5.5rem_5.5rem] gap-x-6 px-5 py-3.5 items-center"
                 >
                   <span className="text-sm font-bold text-slate-400 tabular-nums">{i + 1}</span>
 
@@ -136,25 +137,25 @@ export default function Competitions() {
                     </p>
                   </div>
 
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 capitalize w-fit">
+                  <span className="text-xs px-1.5 py-0.5 rounded-full border border-slate-200 bg-slate-100 text-slate-500 capitalize font-medium justify-self-center">
                     {team.vehicle_class}
                   </span>
 
-                  <span className="text-sm tabular-nums font-medium text-slate-700">
+                  <span className="text-sm tabular-nums font-medium text-slate-700 justify-self-center">
                     {latest?.avg_power != null ? `${latest.avg_power.toFixed(0)} W` : "—"}
                   </span>
 
-                  <span className="text-sm tabular-nums font-medium text-slate-700">
+                  <span className="text-sm tabular-nums font-medium text-slate-700 justify-self-center">
                     {totalEnergy > 0 ? `${totalEnergy.toFixed(3)} Wh` : "—"}
                   </span>
 
-                  <span>
+                  <span className="justify-self-center">
                     {penalty ? (
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-500/20 text-red-400">PENALTY</span>
+                      <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full border border-red-200 bg-red-100 text-red-600">PENALTY</span>
                     ) : warning ? (
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400">WARNING</span>
+                      <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full border border-amber-200 bg-amber-100 text-amber-600">WARNING</span>
                     ) : (
-                      <span className="text-xs text-green-500 font-medium">OK</span>
+                      <span className="text-xs font-medium px-1.5 py-0.5 rounded-full border border-green-200 bg-green-100 text-green-700">OK</span>
                     )}
                   </span>
 
@@ -172,8 +173,15 @@ export default function Competitions() {
       </div>
 
       {/* ── Competition sidebar ──────────────────────────────────────────── */}
-      <aside className="w-48 shrink-0 flex flex-col gap-4 order-last border-l border-ev-cyan/30 pl-6 sticky top-[5.25rem] self-start h-[calc(100vh-7.25rem)]">
+      <aside className="w-48 shrink-0 flex flex-col gap-4 order-last border-l border-ev-cyan/30 pl-6 sticky top-[5.75rem] self-start h-[calc(100vh-7.75rem)]">
         <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Competitions</p>
+        <input
+          type="text"
+          placeholder="Search…"
+          value={sidebarSearch}
+          onChange={(e) => setSidebarSearch(e.target.value)}
+          className="w-full px-3 py-2 rounded-lg border border-ev-border text-sm text-slate-700 bg-white focus:outline-none focus:border-ev-cyan shrink-0"
+        />
         <button
           onClick={() => setShowCreate(true)}
           className="text-left px-3 py-2.5 rounded-lg border border-dashed border-ev-cyan/40 text-ev-cyan text-sm hover:bg-ev-cyan/5 transition-colors shrink-0"
@@ -185,7 +193,7 @@ export default function Competitions() {
           {competitions.length === 0 ? (
             <p className="text-slate-500 text-xs px-3 pt-1">No competitions yet</p>
           ) : (
-            competitions.map((comp) => (
+            competitions.filter((comp) => comp.name.toLowerCase().includes(sidebarSearch.toLowerCase())).map((comp) => (
               <button
                 key={comp.id}
                 onClick={() => selectCompetition(comp)}
@@ -196,7 +204,7 @@ export default function Competitions() {
                     : "border-transparent hover:bg-slate-100",
                 ].join(" ")}
               >
-                <p className="text-sm font-medium leading-tight text-slate-900">{comp.name}</p>
+                <p className="text-sm font-medium leading-tight text-slate-900 truncate">{comp.name}</p>
                 <p className="text-xs text-slate-400 mt-0.5">
                   {comp.event_types.map((e) => EVENT_LABELS[e] ?? e).join(" · ")}
                 </p>
