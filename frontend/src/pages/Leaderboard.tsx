@@ -91,7 +91,7 @@ export default function Leaderboard() {
           <select
             value={selectedId ?? ""}
             onChange={(e) => setSelectedId(e.target.value ? parseInt(e.target.value) : null)}
-            className="border border-ev-border rounded-lg px-3 py-1.5 text-sm text-slate-700 focus:outline-none focus:border-ev-cyan"
+            className="border border-ev-border rounded-lg px-3 py-1.5 text-sm text-slate-700 focus:outline-none focus:border-ev-cyan max-w-xs truncate"
           >
             {competitions.length === 0 && <option value="">No competitions</option>}
             {competitions.map((c) => (
