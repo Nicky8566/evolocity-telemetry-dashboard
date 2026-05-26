@@ -53,7 +53,7 @@ SAMPLE_INTERVAL_S = 0.1    # 10 Hz — one batch per 100 ms
 # ---------------------------------------------------------------------------
 # Signal mode — "random" or "staged"
 # ---------------------------------------------------------------------------
-SIGNAL_MODE = "staged"
+SIGNAL_MODE = "random"
 
 # ── Random mode parameters ──────────────────────────────────────────────────
 VOLTAGE_RANGE_MV = (20_000, 58_000)   # uniform range for each voltage sample (mV)
