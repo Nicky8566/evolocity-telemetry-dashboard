@@ -124,7 +124,7 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
                 ...last,
                 timestamp:       new Date().toISOString(),
                 timestamp_ms:    zeroMs,
-                received_at_ms:  Date.now(),
+                received_at_ms:  last.received_at_ms,
                 synthetic:       true,
                 avg_voltage:     0,
                 avg_current:     0,
