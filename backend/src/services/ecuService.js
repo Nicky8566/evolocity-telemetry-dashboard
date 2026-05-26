@@ -94,9 +94,9 @@ function computeAverages(payload) {
   return { scaled_voltage, scaled_current, scaled_power, avg_voltage, avg_current, avg_power, avg_energy };
 }
 
-// timestamp_ms = device uptime ms — used for duration accuracy across reconnection dumps
-// received_at_ms = server epoch ms — used for alert ISO timestamps and live detection
-function checkBreach(ecu_serial, avg_power, avg_current, timestamp_ms, received_at_ms) {
+// timestamp_ms   = device time ms (uptime for real ESP32, epoch ms for simulator) — duration accuracy
+// frameTimestamp = ISO string derived from device epoch ms when available, else server receipt
+function checkBreach(ecu_serial, avg_power, avg_current, timestamp_ms, frameTimestamp) {
   const powerLimit   = getPowerLimit(ecu_serial);
   const currentLimit = getCurrentLimit(ecu_serial);
   const overLimit    = avg_power >= powerLimit;
@@ -105,7 +105,7 @@ function checkBreach(ecu_serial, avg_power, avg_current, timestamp_ms, received_
   const wasCurrentBreaching = activeCurrentBreaches.has(ecu_serial);
 
   if (overLimit && !wasBreaching) {
-    const startedAt = new Date(received_at_ms).toISOString();
+    const startedAt = frameTimestamp;
     const alertId   = insertAlert({ ecu_serial, power_value: avg_power, threshold: powerLimit, started_at: startedAt, type: 'warning' });
     activeBreaches.set(ecu_serial, { alertId, startedAt, startedMs: timestamp_ms, peakPower: avg_power, escalated: false });
     broadcastAlert({ type: 'alert', data: getAlertById(alertId) });
@@ -121,7 +121,7 @@ function checkBreach(ecu_serial, avg_power, avg_current, timestamp_ms, received_
 
   } else if (!overLimit && wasBreaching) {
     const breach     = activeBreaches.get(ecu_serial);
-    const endedAt    = new Date(received_at_ms).toISOString();
+    const endedAt    = frameTimestamp;
     const durationMs = timestamp_ms - breach.startedMs;
     updateAlertEnd(breach.alertId, breach.peakPower, endedAt, durationMs);
     activeBreaches.delete(ecu_serial);
@@ -144,7 +144,7 @@ function checkBreach(ecu_serial, avg_power, avg_current, timestamp_ms, received_
   }
 
   if (overCurrentLimit && !wasCurrentBreaching) {
-    const startedAt = new Date(received_at_ms).toISOString();
+    const startedAt = frameTimestamp;
     const alertId   = insertAlert({ ecu_serial, power_value: avg_current, threshold: currentLimit, started_at: startedAt, metric: 'current', type: 'warning' });
     activeCurrentBreaches.set(ecu_serial, { alertId, startedAt, startedMs: timestamp_ms, peakCurrent: avg_current });
     broadcastAlert({ type: 'alert', data: getAlertById(alertId) });
@@ -155,7 +155,7 @@ function checkBreach(ecu_serial, avg_power, avg_current, timestamp_ms, received_
 
   } else if (!overCurrentLimit && wasCurrentBreaching) {
     const breach     = activeCurrentBreaches.get(ecu_serial);
-    const endedAt    = new Date(received_at_ms).toISOString();
+    const endedAt    = frameTimestamp;
     const durationMs = timestamp_ms - breach.startedMs;
     updateAlertEnd(breach.alertId, breach.peakCurrent, endedAt, durationMs);
     activeCurrentBreaches.delete(ecu_serial);
@@ -166,7 +166,7 @@ function checkBreach(ecu_serial, avg_power, avg_current, timestamp_ms, received_
 function buildFrame(ecu_serial, boot_session, payload, timestamp, timestamp_ms, uptime_ms, received_at_ms) {
   const { scaled_voltage, scaled_current, scaled_power, avg_voltage, avg_current, avg_power, avg_energy } = computeAverages(payload);
 
-  checkBreach(ecu_serial, avg_power, avg_current, timestamp_ms, received_at_ms);
+  checkBreach(ecu_serial, avg_power, avg_current, timestamp_ms, timestamp);
 
   insertECUFrame({
     ecu_serial,
@@ -192,9 +192,16 @@ export function processECUFrame(payload) {
   const received_at_ms = Date.now();
 
   if (typeof payload.timestamp === 'number') {
+    // Epoch ms (> year 2001) — simulator v3 or NTP-synced device; derive ISO from device value
+    if (payload.timestamp > 1_000_000_000_000) {
+      const timestamp_ms = payload.timestamp;
+      const timestamp    = new Date(timestamp_ms).toISOString();
+      return [buildFrame(ecu_serial, 0, payload, timestamp, timestamp_ms, timestamp_ms, received_at_ms)];
+    }
+    // Real ESP32 — uptime ms (ms since boot); derive ISO from server receipt
     const uptime_ms    = payload.timestamp;
     const boot_session = getBootSession(ecu_serial, uptime_ms);
-    const timestamp    = new Date(received_at_ms).toISOString(); // server receipt for exports
+    const timestamp    = new Date(received_at_ms).toISOString();
     return [buildFrame(ecu_serial, boot_session, payload, timestamp, uptime_ms, uptime_ms, received_at_ms)];
   }
 
