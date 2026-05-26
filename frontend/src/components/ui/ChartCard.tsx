@@ -21,32 +21,41 @@ interface Props {
   showBrush?: boolean
 }
 
-// Formats a timestamp_ms value for the x-axis label.
-// Small values (< 24 h) are device uptime — display as elapsed h:mm:ss.
-// Large values are epoch ms (simulator) — display as local wall-clock time.
+// Formats timestamp_ms for the primary x-axis label.
+// Uptime ms (< 24 h): elapsed h:mm:ss or mm:ss.d.
+// Epoch ms (≥ 24 h): HH:mm:ss.d UTC (decisecond precision so 100 ms ticks are distinguishable).
 function fmtTime(ms: number): string {
   if (ms < 86_400_000) {
-    const h = Math.floor(ms / 3_600_000)
-    const m = Math.floor((ms % 3_600_000) / 60_000)
-    const s = Math.floor((ms % 60_000) / 1_000)
+    const h  = Math.floor(ms / 3_600_000)
+    const m  = Math.floor((ms % 3_600_000) / 60_000)
+    const s  = Math.floor((ms % 60_000) / 1_000)
+    const ds = Math.floor((ms % 1_000) / 100)
     const mm = String(m).padStart(2, "0")
     const ss = String(s).padStart(2, "0")
-    return h > 0 ? `${h}:${mm}:${ss}` : `${m}:${ss}`
+    return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}.${ds}`
   }
-  return new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+  const d  = new Date(ms)
+  const hh = String(d.getUTCHours()).padStart(2, "0")
+  const mm = String(d.getUTCMinutes()).padStart(2, "0")
+  const ss = String(d.getUTCSeconds()).padStart(2, "0")
+  const ds = Math.floor(d.getUTCMilliseconds() / 100)
+  return `${hh}:${mm}:${ss}.${ds}`
 }
 
-// Custom XAxis tick: device ms on top, UTC wall-clock below.
-// utcOffset = wall-clock epoch - device timestamp_ms, computed from first frame.
+// Full ISO-style UTC date+time for x-axis sublabel, e.g. "2026-05-25 14:32:15 UTC".
+function fmtUtcLabel(ms: number): string {
+  return new Date(ms).toISOString().replace("T", " ").slice(0, 19) + " UTC"
+}
+
+// Custom XAxis tick: time-of-day on top, full UTC date+time below.
+// utcOffset = wall-clock epoch − device timestamp_ms (0 for epoch-ms devices).
 function makeXTick(utcOffset: number) {
   return function XTick({ x, y, payload }: { x: number; y: number; payload: { value: number } }) {
-    const ms     = payload.value
-    const msFmt  = fmtTime(ms)
-    const utcFmt = new Date(ms + utcOffset).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    const ms = payload.value
     return (
       <g transform={`translate(${x},${y})`}>
-        <text textAnchor="middle" fill="#94a3b8" fontSize={11} y={4}>{msFmt}</text>
-        <text textAnchor="middle" fill="#94a3b8" fontSize={9}  y={17} opacity={0.65}>{utcFmt}</text>
+        <text textAnchor="middle" fill="#94a3b8" fontSize={11} y={4}>{fmtTime(ms)}</text>
+        <text textAnchor="middle" fill="#94a3b8" fontSize={9}  y={17} opacity={0.65}>{fmtUtcLabel(ms + utcOffset)}</text>
       </g>
     )
   }
@@ -91,7 +100,12 @@ export default function ChartCard({ title, data, dataKey, color, unit, domain, s
             contentStyle={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8, boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }}
             labelStyle={{ color: "#64748b" }}
             formatter={(v) => [`${Number(v).toFixed(2)} ${unit}`, title]}
-            labelFormatter={(ms) => fmtTime(ms as number)}
+            labelFormatter={(ms) => {
+              const t = ms as number
+              return t >= 86_400_000
+                ? fmtUtcLabel(t)
+                : fmtTime(t)
+            }}
           />
           <Line
             type="linear"

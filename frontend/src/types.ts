@@ -1,9 +1,9 @@
 export interface ECUFrame {
   ecu_serial:      number
   boot_session:    number        // 0 = first boot; increments on each detected reboot
-  timestamp:       string        // server receipt ISO — used for exports and DB ordering
-  timestamp_ms:    number        // raw device value: uptime_ms (ESP32) or epoch_ms (simulator) — chart x-axis
-  uptime_ms?:      number | null // same as timestamp_ms for ESP32 frames; null for simulator
+  timestamp:       string        // ISO from device epoch ms (simulator v3) or server receipt (real ESP32)
+  timestamp_ms:    number        // device epoch ms (simulator) or device uptime ms (real ESP32) — chart x-axis
+  uptime_ms?:      number | null // epoch ms for simulator v3; uptime ms for real ESP32; null for ISO-string devices
   received_at_ms?: number        // server epoch ms at receipt — used only for liveness detection
   avg_voltage:     number
   avg_current:     number | null
