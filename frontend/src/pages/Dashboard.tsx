@@ -72,7 +72,8 @@ function chartDomain(
   const domainMin = min >= 0 ? Math.max(0, Math.floor(rawMin / step) * step) : Math.floor(rawMin / step) * step;
   const domainMax = Math.ceil(rawMax / step) * step;
 
-  return domainMax > domainMin ? [domainMin, domainMax] : [0, config.minSpan];
+  const round = (n: number) => Math.round(n * 1000) / 1000
+  return domainMax > domainMin ? [round(domainMin), round(domainMax)] : [0, config.minSpan]
 }
 
 function defaultPowerLimit(team: Team) {

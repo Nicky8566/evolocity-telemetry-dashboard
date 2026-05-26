@@ -34,7 +34,7 @@ import requests
 # Connection / server
 # ---------------------------------------------------------------------------
 BACKEND_URL       = "http://localhost:3001/api/data"
-ECU_SERIAL        = 333      # config.h: #define ecu_serial 2
+ECU_SERIAL        = 3      # config.h: #define ecu_serial 3
 
 # ---------------------------------------------------------------------------
 # Sampling
