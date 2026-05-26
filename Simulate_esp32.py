@@ -1,3 +1,5 @@
+# ARCHIVED — outdated. Use Simulate_esp32_v3.py instead.
+
 """
 Simulates an ESP32 sending energy frames to the backend at 10Hz.
 Run this while the backend server is running to test the full data pipeline.

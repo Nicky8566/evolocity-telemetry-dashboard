@@ -178,23 +178,11 @@ export default function Dashboard() {
 
   const teams = competition ? competition.teams : allTeams;
 
-  // Find the latest boot session's boardId for the selected team's physical ECU serial.
-  // After a device reboot the board key changes from "ECU-2-0" to "ECU-2-1", so we
-  // can't hard-code the session number — pick the highest boot_session available.
   const boardId = useMemo(() => {
     const phys = selectedTeam?.ecu_serial
     if (!phys) return null
-    const matches = Object.keys(boardData)
-      .filter(k => {
-        const [, serial] = k.split("-")
-        return parseInt(serial) === phys
-      })
-      .sort((a, b) => {
-        const bootA = parseInt(a.split("-")[2] ?? "0")
-        const bootB = parseInt(b.split("-")[2] ?? "0")
-        return bootA - bootB
-      })
-    return matches.at(-1) ?? null
+    const key = `ECU-${phys}`
+    return key in boardData ? key : null
   }, [selectedTeam?.ecu_serial, boardData]);
 
   // Fetch history when tab switches — scoped to this team + when they joined this competition
@@ -202,27 +190,22 @@ export default function Dashboard() {
     if (tab !== "history" || !selectedTeam?.ecu_serial) return;
     setHistoryLoading(true);
     setHistoryError(false);
-    // Derive boot_session from the active boardId so history shows the correct
-    // session. boardId format: "ECU-{ecu_serial}-{boot_session}"
-    const boot_session = boardId ? parseInt(boardId.split("-")[2] ?? "0") : 0;
     ecuApi
       .history({
-        ecu_serial:   selectedTeam.ecu_serial,
-        boot_session,
+        ecu_serial: selectedTeam.ecu_serial,
         from: selectedTeam.joined_at ?? competition?.created_at,
       })
       .then(({ data }) => {
         const frames = data.map(f => ({
           ...f,
-          boot_session: f.boot_session ?? 0,
-          timestamp_ms: f.uptime_ms != null ? f.uptime_ms : new Date(f.timestamp).getTime(),
+          timestamp_ms: new Date(f.timestamp).getTime(),
         }))
         frames.sort((a, b) => a.timestamp_ms - b.timestamp_ms)
         setHistoryFrames(frames)
       })
       .catch(() => setHistoryError(true))
       .finally(() => setHistoryLoading(false));
-  }, [tab, selectedTeam?.id, competition?.id, boardId]);
+  }, [tab, selectedTeam?.id, competition?.id]);
 
   useEffect(() => {
     if (!selectedTeam || dirtyPowerTeamId !== selectedTeam.id) return;
@@ -542,12 +525,7 @@ export default function Dashboard() {
             <p className="text-slate-500 text-xs px-3 pt-1">No teams registered</p>
           ) : (
             teams.filter((team) => team.team_name.toLowerCase().includes(sidebarSearch.toLowerCase())).map((team) => {
-              const bid = team.ecu_serial
-                ? Object.keys(boardData)
-                    .filter(k => parseInt(k.split("-")[1]) === team.ecu_serial)
-                    .sort((a, b) => parseInt(a.split("-")[2] ?? "0") - parseInt(b.split("-")[2] ?? "0"))
-                    .at(-1) ?? null
-                : null;
+              const bid = team.ecu_serial ? (`ECU-${team.ecu_serial}` in boardData ? `ECU-${team.ecu_serial}` : null) : null;
               const tframes = bid ? (boardData[bid] ?? []) : [];
               const last   = tframes.at(-1);
               const isLive = last && last.avg_voltage > 0 && (Date.now() - (last.received_at_ms ?? 0)) < 5000;

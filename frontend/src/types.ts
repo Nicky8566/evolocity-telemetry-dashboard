@@ -1,9 +1,7 @@
 export interface ECUFrame {
   ecu_serial:      number
-  boot_session:    number        // 0 = first boot; increments on each detected reboot
-  timestamp:       string        // ISO from device epoch ms (simulator v3) or server receipt (real ESP32)
-  timestamp_ms:    number        // device epoch ms (simulator) or device uptime ms (real ESP32) — chart x-axis
-  uptime_ms?:      number | null // epoch ms for simulator v3; uptime ms for real ESP32; null for ISO-string devices
+  timestamp:       string        // ISO derived from device epoch ms
+  timestamp_ms:    number        // epoch ms — chart x-axis
   received_at_ms?: number        // server epoch ms at receipt — used only for liveness detection
   avg_voltage:     number
   avg_current:     number | null
@@ -12,9 +10,8 @@ export interface ECUFrame {
   synthetic?:      true          // frontend-only: marks injected zero frames; stripped on real data
 }
 
-/** Human-readable label for a device+session. "ESP-2" for boot 0, "ESP-2 (1)" for boot 1, etc. */
-export function formatEspLabel(ecu_serial: number, boot_session: number): string {
-  return boot_session === 0 ? `ESP-${ecu_serial}` : `ESP-${ecu_serial} (${boot_session})`
+export function formatEspLabel(ecu_serial: number): string {
+  return `ESP-${ecu_serial}`
 }
 
 export interface Team {

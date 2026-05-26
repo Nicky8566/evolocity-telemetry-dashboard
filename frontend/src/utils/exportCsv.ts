@@ -4,7 +4,6 @@ type FrameInput = Omit<ECUFrame, "timestamp_ms" | "synthetic">
 
 const FRAME_COLS: (keyof FrameInput)[] = [
   "timestamp",
-  "uptime_ms",
   "ecu_serial",
   "avg_voltage",
   "avg_current",
@@ -14,7 +13,6 @@ const FRAME_COLS: (keyof FrameInput)[] = [
 
 const FRAME_HEADERS: Record<string, string> = {
   timestamp:    "Timestamp (UTC)",
-  uptime_ms:    "Device Timestamp (ms)",
   ecu_serial:   "ECU Serial",
   avg_voltage:  "Voltage (V)",
   avg_current:  "Current (A)",

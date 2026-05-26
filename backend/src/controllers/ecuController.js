@@ -30,12 +30,11 @@ export function receiveECUData(req, res) {
 }
 
 export function getECUData(req, res) {
-  const { ecu_serial, boot_session, from, limit } = req.query;
+  const { ecu_serial, from, limit } = req.query;
   const rows = getECUHistory({
-    ecu_serial:   ecu_serial   ? parseInt(ecu_serial)   : undefined,
-    boot_session: boot_session != null ? parseInt(boot_session) : undefined,
-    from:         from         || undefined,
-    limit:        limit        ? parseInt(limit)         : undefined,
+    ecu_serial: ecu_serial ? parseInt(ecu_serial) : undefined,
+    from:       from       || undefined,
+    limit:      limit      ? parseInt(limit)      : undefined,
   });
   res.json({ count: rows.length, data: rows });
 }

@@ -51,7 +51,6 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
   const reconnectDelayRef                         = useRef(1000)
 
   // Pre-populate charts with the last 5 minutes of stored data on first load.
-  // History rows don't include timestamp_ms or received_at_ms, so we derive them.
   useEffect(() => {
     const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
     ecuApi
@@ -60,11 +59,9 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
         if (rows.length === 0) return
         const grouped: BoardData = {}
         rows.forEach((row) => {
-          const timestamp_ms = row.uptime_ms != null
-            ? row.uptime_ms
-            : new Date(row.timestamp).getTime()
-          const frame: ECUFrame = { ...row, boot_session: row.boot_session ?? 0, timestamp_ms }
-          const boardId = `ECU-${frame.ecu_serial}-${frame.boot_session}`
+          const timestamp_ms = new Date(row.timestamp).getTime()
+          const frame: ECUFrame = { ...row, timestamp_ms }
+          const boardId = `ECU-${frame.ecu_serial}`
           if (!grouped[boardId]) grouped[boardId] = []
           grouped[boardId].push(frame)
         })
@@ -105,7 +102,7 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
           if (msg.type !== "ecu_frame") return
 
           const frame: ECUFrame = msg.data
-          const boardId = `ECU-${frame.ecu_serial}-${frame.boot_session}`
+          const boardId = `ECU-${frame.ecu_serial}`
 
           window.clearTimeout(zeroTimeoutsRef.current[boardId])
 
@@ -120,8 +117,7 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
           })
 
           // 8s of silence → inject a synthetic zero frame to drop the chart.
-          // The zero frame uses uptime_ms + 100 so it slots immediately after
-          // the last real frame and is stripped if real data resumes.
+          // The zero frame slots just after the last real frame and is stripped if real data resumes.
           zeroTimeoutsRef.current[boardId] = window.setTimeout(() => {
             setBoardData((prev) => {
               const existing = prev[boardId] ?? []
