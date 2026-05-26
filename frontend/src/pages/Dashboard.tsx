@@ -34,6 +34,48 @@ const POWER_LIMIT_PRESETS = [350, 2000];
 const CURRENT_LIMIT_MIN   = 0;
 const CURRENT_LIMIT_MAX   = 100;
 
+const CHART_DOMAIN_DEFAULTS = {
+  avg_voltage: { fallback: [0, 60] as [number, number], minSpan: 2 },
+  avg_current: { fallback: [0, CURRENT_LIMIT_MAX] as [number, number], minSpan: 1 },
+  avg_power:   { fallback: [0, POWER_LIMIT_MAX] as [number, number], minSpan: 50 },
+};
+
+function niceStep(rawStep: number) {
+  if (!Number.isFinite(rawStep) || rawStep <= 0) return 1;
+  const magnitude = 10 ** Math.floor(Math.log10(rawStep));
+  const normalized = rawStep / magnitude;
+  if (normalized <= 1) return magnitude;
+  if (normalized <= 2) return 2 * magnitude;
+  if (normalized <= 5) return 5 * magnitude;
+  return 10 * magnitude;
+}
+
+function chartDomain(
+  frames: ECUFrame[],
+  key: "avg_voltage" | "avg_current" | "avg_power",
+): [number, number] {
+  const config = CHART_DOMAIN_DEFAULTS[key];
+  const values = frames
+    .map((frame) => frame[key])
+    .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+
+  if (values.length === 0) return config.fallback;
+
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min;
+  const paddedSpan = Math.max(config.minSpan, range * 1.3);
+  const midpoint = (min + max) / 2;
+  const rawMin = midpoint - paddedSpan / 2;
+  const rawMax = midpoint + paddedSpan / 2;
+  const step = niceStep(paddedSpan / 5);
+  const domainMin = min >= 0 ? Math.max(0, Math.floor(rawMin / step) * step) : Math.floor(rawMin / step) * step;
+  const domainMax = Math.ceil(rawMax / step) * step;
+
+  const round = (n: number) => Math.round(n * 1000) / 1000
+  return domainMax > domainMin ? [round(domainMin), round(domainMax)] : [0, config.minSpan]
+}
+
 function defaultPowerLimit(team: Team) {
   return team.power_limit ?? (team.vehicle_class.toLowerCase() === "standard" ? 350 : 2000);
 }
@@ -264,6 +306,9 @@ export default function Dashboard() {
 
   const displayFrames = tab === "live" ? filteredLiveFrames : historyFrames;
   const latestFrame   = displayFrames.at(-1) ?? null;
+  const voltageDomain = useMemo(() => chartDomain(displayFrames, "avg_voltage"), [displayFrames]);
+  const currentDomain = useMemo(() => chartDomain(displayFrames, "avg_current"), [displayFrames]);
+  const powerDomain   = useMemo(() => chartDomain(displayFrames, "avg_power"), [displayFrames]);
 
   const teamAlerts = useMemo(
     () => selectedTeam ? alerts.filter((a) => a.ecu_serial === selectedTeam.ecu_serial) : alerts,
@@ -441,9 +486,9 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   <>
-                    <ChartCard title="Voltage" data={displayFrames} dataKey="avg_voltage" color="#00a5c8" unit="V" domain={[0, 60]}             showBrush={tab === "history"} />
-                    <ChartCard title="Current" data={displayFrames} dataKey="avg_current" color="#ec9c2c" unit="A" domain={[0, CURRENT_LIMIT_MAX]} showBrush={tab === "history"} />
-                    <ChartCard title="Power"   data={displayFrames} dataKey="avg_power"   color="#6366f1" unit="W" domain={[0, POWER_LIMIT_MAX]} showBrush={tab === "history"} />
+                    <ChartCard title="Voltage" data={displayFrames} dataKey="avg_voltage" color="#00a5c8" unit="V" domain={voltageDomain} showBrush={tab === "history"} />
+                    <ChartCard title="Current" data={displayFrames} dataKey="avg_current" color="#ec9c2c" unit="A" domain={currentDomain} showBrush={tab === "history"} />
+                    <ChartCard title="Power"   data={displayFrames} dataKey="avg_power"   color="#6366f1" unit="W" domain={powerDomain}   showBrush={tab === "history"} />
                   </>
                 )}
               </div>

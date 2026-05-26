@@ -19,7 +19,7 @@ Offline simulation:
   main loop simultaneously resumes sending live frames at 10 Hz.
 
 Usage:
-    python simulate_esp32.py
+    python Simulate_esp32_v2.py
 """
 
 import collections
@@ -33,7 +33,7 @@ import requests
 # Connection / server
 # ---------------------------------------------------------------------------
 BACKEND_URL       = "http://localhost:3001/api/data"
-ECU_SERIAL        = 67      # config.h: #define ecu_serial 2
+ECU_SERIAL        = 2      # config.h: #define ecu_serial 2
 
 # ---------------------------------------------------------------------------
 # Sampling

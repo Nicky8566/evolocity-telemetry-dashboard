@@ -4,6 +4,7 @@ import {
   CartesianGrid,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -50,17 +51,27 @@ function fmtUtcLabel(ms: number): string {
 // Custom XAxis tick: time-of-day on top, full UTC date+time below.
 // utcOffset = wall-clock epoch − device timestamp_ms (0 for epoch-ms devices).
 function makeXTick(utcOffset: number) {
-  return function XTick({ x, y, payload }: { x: number; y: number; payload: { value: number } }) {
+  return function XTick({
+    x,
+    y,
+    payload,
+  }: {
+    x?: number | string
+    y?: number | string
+    payload?: { value: number }
+  }) {
+    const tickX = Number(x ?? 0)
+    const tickY = Number(y ?? 0)
+    if (!payload) return null
     const ms = payload.value
     return (
-      <g transform={`translate(${x},${y})`}>
+      <g transform={`translate(${tickX},${tickY})`}>
         <text textAnchor="middle" fill="#94a3b8" fontSize={11} y={4}>{fmtTime(ms)}</text>
         <text textAnchor="middle" fill="#94a3b8" fontSize={9}  y={17} opacity={0.65}>{fmtUtcLabel(ms + utcOffset)}</text>
       </g>
     )
   }
 }
-
 export default function ChartCard({ title, data, dataKey, color, unit, domain, showBrush }: Props) {
   const utcOffset = useMemo(() => {
     if (data.length === 0) return 0
@@ -96,6 +107,15 @@ export default function ChartCard({ title, data, dataKey, color, unit, domain, s
             tick={{ fill: "#94a3b8", fontSize: 11 }}
             tickFormatter={(v) => `${v}${unit}`}
           />
+          {domain[0] < 0 && domain[1] > 0 && (
+            <ReferenceLine
+              y={0}
+              stroke="#64748b"
+              strokeDasharray="5 4"
+              strokeWidth={1.5}
+              label={{ value: "0", position: "insideLeft", fill: "#64748b", fontSize: 11 }}
+            />
+          )}
           <Tooltip
             contentStyle={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 8, boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }}
             labelStyle={{ color: "#64748b" }}

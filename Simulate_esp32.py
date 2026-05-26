@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 import requests
 
 BACKEND_URL = "http://localhost:3001/api/data"
-ECU_SERIAL  = 12345
+ECU_SERIAL  = 1
 INTERVAL    = 0.1    # 10Hz
 NUM_SAMPLES = 10
 
