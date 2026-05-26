@@ -9,6 +9,63 @@ import { broadcastAlert } from '../../websocket.js';
 const activeBreaches = new Map();
 const activeCurrentBreaches = new Map();
 
+// ecu_serial → server epoch ms of last received frame
+const lastFrameReceivedAt = new Map();
+
+// Close any open breaches for an ECU when it goes offline.
+// Uses server time for end timestamp since the device is no longer sending.
+function closeBreachesOnDisconnect(ecu_serial) {
+  const nowMs  = Date.now();
+  const nowIso = new Date(nowMs).toISOString();
+
+  if (activeBreaches.has(ecu_serial)) {
+    const breach     = activeBreaches.get(ecu_serial);
+    const durationMs = nowMs - breach.startedMs;
+    updateAlertEnd(breach.alertId, breach.peakPower, nowIso, durationMs);
+    activeBreaches.delete(ecu_serial);
+    broadcastAlert({ type: 'alert', data: getAlertById(breach.alertId) });
+    console.log(`[ECU ${ecu_serial}] Power breach closed on disconnect (${(durationMs / 1000).toFixed(1)}s)`);
+
+    const penaltySeconds = 5 * Math.floor(durationMs / 1000);
+    if (penaltySeconds > 0) {
+      const run = getActiveRunForEcu(ecu_serial, 'efficiency');
+      if (run) {
+        applyPenalty({
+          run_id:       run.id,
+          penalty_type: 'power_zone',
+          value:        penaltySeconds,
+          unit:         'seconds',
+          source:       'auto',
+          note:         `Auto: ${(durationMs / 1000).toFixed(2)}s in penalty zone (device offline), peak ${breach.peakPower.toFixed(0)}W`,
+        });
+      }
+    }
+  }
+
+  if (activeCurrentBreaches.has(ecu_serial)) {
+    const breach     = activeCurrentBreaches.get(ecu_serial);
+    const durationMs = nowMs - breach.startedMs;
+    updateAlertEnd(breach.alertId, breach.peakCurrent, nowIso, durationMs);
+    activeCurrentBreaches.delete(ecu_serial);
+    broadcastAlert({ type: 'alert', data: getAlertById(breach.alertId) });
+    console.log(`[ECU ${ecu_serial}] Current breach closed on disconnect (${(durationMs / 1000).toFixed(1)}s)`);
+  }
+}
+
+// Every 5s: close open breaches for any ECU that hasn't sent a frame in 15s.
+// 15s is safely beyond the 8s synthetic-zero threshold the frontend uses,
+// so by the time this fires the UI already shows the device as disconnected.
+setInterval(() => {
+  const now = Date.now();
+  for (const [ecu_serial, lastMs] of lastFrameReceivedAt) {
+    if (now - lastMs >= 15_000 &&
+        (activeBreaches.has(ecu_serial) || activeCurrentBreaches.has(ecu_serial))) {
+      console.log(`[ECU ${ecu_serial}] No frames for ${((now - lastMs) / 1000).toFixed(0)}s — closing open breaches`);
+      closeBreachesOnDisconnect(ecu_serial);
+    }
+  }
+}, 5_000);
+
 // Frames arrive at 10Hz — each covers 0.1s
 const FRAME_DURATION_HOURS = 0.1 / 3600;
 
@@ -156,6 +213,7 @@ function buildFrame(ecu_serial, payload, timestamp, timestamp_ms, received_at_ms
 export function processECUFrame(payload) {
   const { ecu_serial } = payload;
   const received_at_ms = Date.now();
+  lastFrameReceivedAt.set(ecu_serial, received_at_ms);
 
   if (typeof payload.timestamp === 'number') {
     // Epoch ms — all current devices and simulators

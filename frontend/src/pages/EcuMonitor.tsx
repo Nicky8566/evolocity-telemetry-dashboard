@@ -110,7 +110,7 @@ export default function EcuMonitor() {
       if (isNaN(serial)) continue
       const last = frames.at(-1)
       if (!last) continue
-      const isLive = last.avg_voltage > 0 && Date.now() - (last.received_at_ms ?? 0) < 5000
+      const isLive = Date.now() - (last.received_at_ms ?? 0) < 5000
       map[serial] = { last, isLive }
     }
     return map

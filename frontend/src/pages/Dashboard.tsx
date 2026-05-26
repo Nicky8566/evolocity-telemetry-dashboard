@@ -528,7 +528,7 @@ export default function Dashboard() {
               const bid = team.ecu_serial ? (`ECU-${team.ecu_serial}` in boardData ? `ECU-${team.ecu_serial}` : null) : null;
               const tframes = bid ? (boardData[bid] ?? []) : [];
               const last   = tframes.at(-1);
-              const isLive = last && last.avg_voltage > 0 && (Date.now() - (last.received_at_ms ?? 0)) < 5000;
+              const isLive = last && (Date.now() - (last.received_at_ms ?? 0)) < 5000;
               const isDead = tframes.length > 0 && !isLive;
 
               return (

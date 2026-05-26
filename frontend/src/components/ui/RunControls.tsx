@@ -60,7 +60,7 @@ export default function RunControls({ team, competition, onRunsChanged }: Props)
     const frames = bid ? (boardData[bid] ?? []) : []
     const last = frames.at(-1)
     if (!last) return false
-    return last.avg_voltage > 0 && now - (last.received_at_ms ?? 0) < LIVE_WINDOW_MS
+    return now - (last.received_at_ms ?? 0) < LIVE_WINDOW_MS
   }, [boardData, team.ecu_serial, now])
 
   const noEcu        = team.ecu_serial == null
