@@ -64,33 +64,6 @@ npm install
 npm run dev        # starts on port 5173
 ```
 
-### Simulator
-
-Simulates one or more ESP32 devices sending frames to the backend.
-
-```bash
-python Simulate_esp32_v3.py --help          # full parameter list
-
-# Examples
-python Simulate_esp32_v3.py --serial 3
-python Simulate_esp32_v3.py --serial 5 --mode staged --level-duration 10
-python Simulate_esp32_v3.py --serial 2 --v-min 30 --v-max 50 --i-max 15
-python Simulate_esp32_v3.py --serial 4 --offline --online-duration 20 --offline-duration 10
-```
-
-Key parameters:
-
-| Flag | Default | Description |
-|---|---|---|
-| `--serial` | `3` | ECU serial number |
-| `--mode` | `random` | `random` or `staged` signal |
-| `--hz` | `10.0` | Transmit rate |
-| `--v-min` / `--v-max` | `20` / `58` V | Voltage range (random mode) |
-| `--i-min` / `--i-max` | `0` / `30` A | Current range (negative = regen) |
-| `--offline` | off | Enable offline/reconnect cycle |
-| `--online-duration` | `30` s | Seconds online before disconnecting |
-| `--offline-duration` | `20` s | Seconds offline before reconnecting |
-
 ## ECU frame format
 
 Frames are POST'd to `POST /api/data`:
@@ -123,3 +96,32 @@ Frames are POST'd to `POST /api/data`:
 Live telemetry is pushed over two WebSocket connections:
 - `ws://localhost:3001` — ECU frames at 10 Hz
 - `ws://localhost:3001/alerts` — alerts, run events, leaderboard nudges
+
+## Simulator
+
+Simulates one or more ESP32 devices sending frames to the backend. Useful for testing purposes.
+
+```bash
+python Simulate_esp32_v3.py --help          # full parameter list
+
+# Examples
+python Simulate_esp32_v3.py --serial 3
+python Simulate_esp32_v3.py --serial 5 --mode staged --level-duration 10
+python Simulate_esp32_v3.py --serial 2 --v-min 30 --v-max 50 --i-max 15
+python Simulate_esp32_v3.py --serial 4 --offline --online-duration 20 --offline-duration 10
+```
+
+Key parameters:
+
+| Flag | Default | Description |
+|---|---|---|
+| `--serial` | `3` | ECU serial number |
+| `--mode` | `random` | `random` or `staged` signal |
+| `--hz` | `10.0` | Transmit rate |
+| `--v-min` / `--v-max` | `20` / `58` V | Voltage range (random mode) |
+| `--i-min` / `--i-max` | `0` / `30` A | Current range (negative = regen) |
+| `--offline` | off | Enable offline/reconnect cycle |
+| `--online-duration` | `30` s | Seconds online before disconnecting |
+| `--offline-duration` | `20` s | Seconds offline before reconnecting |
+
+
