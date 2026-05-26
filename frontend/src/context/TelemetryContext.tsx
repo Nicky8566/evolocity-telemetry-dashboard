@@ -1,5 +1,6 @@
 import {
   createContext,
+  startTransition,
   useContext,
   useEffect,
   useRef,
@@ -49,6 +50,8 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
   const wsRef                                     = useRef<WebSocket | null>(null)
   const reconnectTimerRef                         = useRef<number | null>(null)
   const reconnectDelayRef                         = useRef(1000)
+  const pendingFramesRef                          = useRef<ECUFrame[]>([])
+  const flushIntervalRef                          = useRef<number | null>(null)
 
   // Pre-populate charts with the last 5 minutes of stored data on first load.
   useEffect(() => {
@@ -104,17 +107,9 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
           const frame: ECUFrame = msg.data
           const boardId = `ECU-${frame.ecu_serial}`
 
+          // Buffer the frame — the flush interval will commit it to state.
           window.clearTimeout(zeroTimeoutsRef.current[boardId])
-
-          setBoardData((prev) => {
-            const inserted = sortedInsert(prev[boardId] ?? [], frame)
-            // Rolling window: keep the last 5 minutes of device time.
-            // Compare against timestamp_ms (device units) not wall-clock.
-            const latestMs = inserted[inserted.length - 1].timestamp_ms
-            const cutoff   = latestMs - STORE_WINDOW_MS
-            const windowed = inserted.filter(f => f.timestamp_ms >= cutoff)
-            return { ...prev, [boardId]: windowed }
-          })
+          pendingFramesRef.current.push(frame)
 
           // 8s of silence → inject a synthetic zero frame to drop the chart.
           // The zero frame slots just after the last real frame and is stripped if real data resumes.
@@ -152,10 +147,29 @@ export function TelemetryProvider({ children }: { children: ReactNode }) {
 
     connect()
 
+    // Flush buffered frames to state at 200ms intervals (~5 renders/s instead of 10).
+    // All frames that arrived since the last flush are applied in a single setBoardData call.
+    flushIntervalRef.current = window.setInterval(() => {
+      if (pendingFramesRef.current.length === 0) return
+      const pending = pendingFramesRef.current.splice(0)
+      startTransition(() => setBoardData((prev) => {
+        const next = { ...prev }
+        for (const frame of pending) {
+          const boardId  = `ECU-${frame.ecu_serial}`
+          const inserted = sortedInsert(next[boardId] ?? [], frame)
+          const latestMs = inserted[inserted.length - 1].timestamp_ms
+          const cutoff   = latestMs - STORE_WINDOW_MS
+          next[boardId]  = inserted.filter(f => f.timestamp_ms >= cutoff)
+        }
+        return next
+      }))
+    }, 200)
+
     const timeouts = zeroTimeoutsRef.current
     return () => {
       destroyed = true
       if (reconnectTimerRef.current !== null) window.clearTimeout(reconnectTimerRef.current)
+      if (flushIntervalRef.current   !== null) window.clearInterval(flushIntervalRef.current)
       wsRef.current?.close()
       Object.values(timeouts).forEach(window.clearTimeout)
     }
