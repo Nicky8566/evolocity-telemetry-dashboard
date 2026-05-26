@@ -28,9 +28,18 @@ Modes:
                small jitter; supports negative current to simulate regen/backfeed.
 
 Usage:
-    python Simulate_esp32_v3.py
+    python Simulate_esp32_v3.py [options]
+    python Simulate_esp32_v3.py --help   (full parameter list)
+
+Examples:
+    python Simulate_esp32_v3.py --serial 5
+    python Simulate_esp32_v3.py --serial 2 --mode staged --level-duration 10
+    python Simulate_esp32_v3.py --serial 4 --v-min 30 --v-max 50 --i-min 0 --i-max 15
+    python Simulate_esp32_v3.py --serial 5 --offline --online-duration 20 --offline-duration 10
+    python Simulate_esp32_v3.py --serial 7 --url http://192.168.1.10:3001/api/data
 """
 
+import argparse
 import collections
 import random
 import threading
@@ -39,30 +48,72 @@ import time
 import requests
 
 # ---------------------------------------------------------------------------
+# Argument parsing
+# ---------------------------------------------------------------------------
+_p = argparse.ArgumentParser(
+    description="ESP32 telemetry simulator",
+    formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+)
+
+_g = _p.add_argument_group("connection")
+_g.add_argument("--serial", type=int,   default=1,                              metavar="N",   help="ECU serial number")
+_g.add_argument("--url",    type=str,   default="http://localhost:3001/api/data", metavar="URL", help="Backend endpoint")
+_g.add_argument("--hz",     type=float, default=10.0,                           metavar="N",   help="Transmit rate in Hz")
+
+_g = _p.add_argument_group("signal mode")
+_g.add_argument("--mode", choices=["random", "staged"], default="random", help="Signal generation mode")
+
+_g = _p.add_argument_group("random mode")
+_g.add_argument("--v-min", type=float, default=20.0, metavar="V", help="Min voltage (V)")
+_g.add_argument("--v-max", type=float, default=58.0, metavar="V", help="Max voltage (V)")
+_g.add_argument("--i-min", type=float, default=0.0,  metavar="A", help="Min current (A), negative = regen")
+_g.add_argument("--i-max", type=float, default=30.0, metavar="A", help="Max current (A)")
+
+_g = _p.add_argument_group("staged mode")
+_g.add_argument("--level-duration", type=float, default=20.0, metavar="S", help="Seconds each level is held")
+_g.add_argument("--v-jitter",       type=float, default=0.1,  metavar="V", help="Voltage jitter ±V per sample")
+_g.add_argument("--i-jitter",       type=float, default=0.1,  metavar="A", help="Current jitter ±A per sample")
+
+_g = _p.add_argument_group("offline simulation")
+_g.add_argument("--offline",          action="store_true", default=False, help="Enable offline/reconnect cycle")
+_g.add_argument("--online-duration",  type=float, default=30.0, metavar="S", help="Seconds online before disconnecting")
+_g.add_argument("--offline-duration", type=float, default=20.0, metavar="S", help="Seconds offline before reconnecting")
+
+_args = _p.parse_args()
+
+if _args.hz <= 0:
+    _p.error("--hz must be greater than 0")
+if _args.v_min >= _args.v_max:
+    _p.error("--v-min must be less than --v-max")
+if _args.i_min >= _args.i_max:
+    _p.error("--i-min must be less than --i-max")
+
+# ---------------------------------------------------------------------------
 # Connection / server
 # ---------------------------------------------------------------------------
-BACKEND_URL = "http://localhost:3001/api/data"
-ECU_SERIAL  = 3      # config.h: #define ecu_serial N
+BACKEND_URL = _args.url
+ECU_SERIAL  = _args.serial
 
 # ---------------------------------------------------------------------------
 # Sampling
 # ---------------------------------------------------------------------------
-NUM_SAMPLES       = 10     # config.h: #define BATCH_SIZE 10
-SAMPLE_INTERVAL_S = 0.1    # 10 Hz — one batch per 100 ms
+NUM_SAMPLES       = 10
+SAMPLE_INTERVAL_S = 1.0 / _args.hz
 
 # ---------------------------------------------------------------------------
-# Signal mode — "random" or "staged"
+# Signal mode
 # ---------------------------------------------------------------------------
-SIGNAL_MODE = "random"
+SIGNAL_MODE      = _args.mode
+SIMULATE_OFFLINE = _args.offline
 
 # ── Random mode parameters ──────────────────────────────────────────────────
-VOLTAGE_RANGE_MV = (20_000, 58_000)   # uniform range for each voltage sample (mV)
-CURRENT_RANGE_MA = (0, 30_000)        # uniform range for each current sample (mA)
+VOLTAGE_RANGE_MV = (int(_args.v_min * 1000), int(_args.v_max * 1000))
+CURRENT_RANGE_MA = (int(_args.i_min * 1000), int(_args.i_max * 1000))
 
 # ── Staged mode parameters ──────────────────────────────────────────────────
-LEVEL_DURATION_S = 20.0    # seconds each (voltage, current) level is held
-VOLTAGE_JITTER_V = 0.1     # +/- V jitter per sample
-CURRENT_JITTER_A = 0.1     # +/- A jitter per sample (can expose negative current at low levels)
+LEVEL_DURATION_S = _args.level_duration
+VOLTAGE_JITTER_V = _args.v_jitter
+CURRENT_JITTER_A = _args.i_jitter
 
 # (voltage_V, current_A) — negative current simulates regen / backfeed
 LEVELS = [
@@ -79,8 +130,8 @@ LEVELS = [
 # ---------------------------------------------------------------------------
 # Offline simulation parameters
 # ---------------------------------------------------------------------------
-ONLINE_DURATION_S  = 30.0    # seconds to stream normally before simulating a disconnect
-OFFLINE_DURATION_S = 20.0    # seconds to stay offline and buffer before reconnecting
+ONLINE_DURATION_S  = _args.online_duration
+OFFLINE_DURATION_S = _args.offline_duration
 MAX_BUFFER_FRAMES  = 11_900  # mirrors SPIFFS capacity: ~1 MB / 128 bytes per batch_t
 
 # ---------------------------------------------------------------------------
@@ -231,17 +282,21 @@ def main():
     else:
         print(f"Signal: random  V={VOLTAGE_RANGE_MV[0]//1000}-{VOLTAGE_RANGE_MV[1]//1000} V  "
               f"I={CURRENT_RANGE_MA[0]//1000}-{CURRENT_RANGE_MA[1]//1000} A")
-    print(f"Cycle: {ONLINE_DURATION_S:.0f} s online  "
-          f"->  {OFFLINE_DURATION_S:.0f} s offline  "
-          f"->  flush (background) + live (10 Hz)  ->  repeat")
-    print(f"Buffer: {MAX_BUFFER_FRAMES} frames = "
-          f"{MAX_BUFFER_FRAMES * SAMPLE_INTERVAL_S / 60:.0f} min  "
-          f"(mirrors SPIFFS ~1 MB flash on real ESP)\n")
+    if SIMULATE_OFFLINE:
+        print(f"Cycle: {ONLINE_DURATION_S:.0f} s online  "
+              f"->  {OFFLINE_DURATION_S:.0f} s offline  "
+              f"->  flush (background) + live (10 Hz)  ->  repeat")
+        print(f"Buffer: {MAX_BUFFER_FRAMES} frames = "
+              f"{MAX_BUFFER_FRAMES * SAMPLE_INTERVAL_S / 60:.0f} min  "
+              f"(mirrors SPIFFS ~1 MB flash on real ESP)")
+    else:
+        print("Offline simulation: disabled  (pass --offline to enable)")
+    print()
 
     while True:
         loop_start = time.monotonic()
 
-        if time.monotonic() >= phase_end:
+        if SIMULATE_OFFLINE and time.monotonic() >= phase_end:
             if sim_online:
                 sim_online = False
                 phase_end  = time.monotonic() + OFFLINE_DURATION_S
