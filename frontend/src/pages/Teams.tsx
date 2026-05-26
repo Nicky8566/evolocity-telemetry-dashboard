@@ -317,7 +317,7 @@ export default function Teams() {
                 : null;
               const tframes = bid ? (boardData[bid] ?? []) : [];
               const last = tframes.at(-1);
-              const isLive = last && last.avg_voltage > 0 && (Date.now() - (last.received_at_ms ?? 0)) < 5000;
+              const isLive = last && (Date.now() - (last.received_at_ms ?? 0)) < 5000;
               const isDead = tframes.length > 0 && !isLive;
 
               return (

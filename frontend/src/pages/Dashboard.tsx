@@ -114,6 +114,10 @@ export default function Dashboard() {
   const [dateTo, setDateTo]             = useState("");
   const [sidebarSearch, setSidebarSearch] = useState("");
 
+  const [liveWindowMs, setLiveWindowMs]           = useState(30_000);
+  const [editingCurrentLimit, setEditingCurrentLimit] = useState(false);
+  const [editingPowerLimit,   setEditingPowerLimit]   = useState(false);
+
   // Ref so loadTeams can read current selectedTeam without it being a dependency
   const selectedTeamRef = useRef(selectedTeam);
   useEffect(() => { selectedTeamRef.current = selectedTeam; }, [selectedTeam]);
@@ -174,27 +178,18 @@ export default function Dashboard() {
     setHistoryError(false);
     setDateFrom("");
     setDateTo("");
+    setLiveWindowMs(30_000);
+    setEditingCurrentLimit(false);
+    setEditingPowerLimit(false);
   }, [selectedTeam?.id]);
 
   const teams = competition ? competition.teams : allTeams;
 
-  // Find the latest boot session's boardId for the selected team's physical ECU serial.
-  // After a device reboot the board key changes from "ECU-2-0" to "ECU-2-1", so we
-  // can't hard-code the session number — pick the highest boot_session available.
   const boardId = useMemo(() => {
     const phys = selectedTeam?.ecu_serial
     if (!phys) return null
-    const matches = Object.keys(boardData)
-      .filter(k => {
-        const [, serial] = k.split("-")
-        return parseInt(serial) === phys
-      })
-      .sort((a, b) => {
-        const bootA = parseInt(a.split("-")[2] ?? "0")
-        const bootB = parseInt(b.split("-")[2] ?? "0")
-        return bootA - bootB
-      })
-    return matches.at(-1) ?? null
+    const key = `ECU-${phys}`
+    return key in boardData ? key : null
   }, [selectedTeam?.ecu_serial, boardData]);
 
   // Fetch history when tab switches — scoped to this team + when they joined this competition
@@ -202,27 +197,22 @@ export default function Dashboard() {
     if (tab !== "history" || !selectedTeam?.ecu_serial) return;
     setHistoryLoading(true);
     setHistoryError(false);
-    // Derive boot_session from the active boardId so history shows the correct
-    // session. boardId format: "ECU-{ecu_serial}-{boot_session}"
-    const boot_session = boardId ? parseInt(boardId.split("-")[2] ?? "0") : 0;
     ecuApi
       .history({
-        ecu_serial:   selectedTeam.ecu_serial,
-        boot_session,
+        ecu_serial: selectedTeam.ecu_serial,
         from: selectedTeam.joined_at ?? competition?.created_at,
       })
       .then(({ data }) => {
         const frames = data.map(f => ({
           ...f,
-          boot_session: f.boot_session ?? 0,
-          timestamp_ms: f.uptime_ms != null ? f.uptime_ms : new Date(f.timestamp).getTime(),
+          timestamp_ms: new Date(f.timestamp).getTime(),
         }))
         frames.sort((a, b) => a.timestamp_ms - b.timestamp_ms)
         setHistoryFrames(frames)
       })
       .catch(() => setHistoryError(true))
       .finally(() => setHistoryLoading(false));
-  }, [tab, selectedTeam?.id, competition?.id, boardId]);
+  }, [tab, selectedTeam?.id, competition?.id]);
 
   useEffect(() => {
     if (!selectedTeam || dirtyPowerTeamId !== selectedTeam.id) return;
@@ -288,21 +278,16 @@ export default function Dashboard() {
     [boardData, boardId],
   );
 
-  // Live view shows a fixed 60-second rolling window relative to the latest
-  // frame's device timestamp_ms.  This keeps the chart readable regardless of
-  // how long the device has been running and avoids rendering thousands of points.
-  const LIVE_WINDOW_MS = 30_000;
-
   const filteredLiveFrames = useMemo(() => {
     if (liveFrames.length === 0) return liveFrames;
     const latestMs = liveFrames[liveFrames.length - 1].timestamp_ms;
-    const cutoff   = latestMs - LIVE_WINDOW_MS;
+    const cutoff   = latestMs - liveWindowMs;
     const windowed = liveFrames.filter(f => f.timestamp_ms >= cutoff);
     if (!dateFrom && !dateTo) return windowed;
     const from = dateFrom ? new Date(dateFrom).getTime() : 0;
     const to   = dateTo   ? new Date(dateTo).getTime()   : Infinity;
     return windowed.filter(f => f.timestamp_ms >= from && f.timestamp_ms <= to);
-  }, [liveFrames, dateFrom, dateTo]);
+  }, [liveFrames, liveWindowMs, dateFrom, dateTo]);
 
   const displayFrames = tab === "live" ? filteredLiveFrames : historyFrames;
   const latestFrame   = displayFrames.at(-1) ?? null;
@@ -377,7 +362,18 @@ export default function Dashboard() {
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Current Limit</p>
                   <div className="flex items-baseline gap-2">
-                    <p className="text-lg font-bold text-slate-900 tabular-nums">{currentLimitDraft}A</p>
+                    {editingCurrentLimit ? (
+                      <input
+                        type="number" min={CURRENT_LIMIT_MIN} max={CURRENT_LIMIT_MAX} step={1}
+                        defaultValue={currentLimitDraft}
+                        className="text-lg font-bold text-slate-900 tabular-nums bg-transparent border-none outline-none w-14 text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        autoFocus
+                        onBlur={(e) => { const v = Math.round(Number(e.target.value)); if (!isNaN(v)) setCurrentLimit(v); setEditingCurrentLimit(false); }}
+                        onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") setEditingCurrentLimit(false); }}
+                      />
+                    ) : (
+                      <p className="text-lg font-bold text-slate-900 tabular-nums" onClick={() => setEditingCurrentLimit(true)}>{currentLimitDraft}A</p>
+                    )}
                     <p className={["text-xs", currentLimitStatus === "error" ? "text-red-500" : currentLimitStatus === "saving" ? "text-slate-400" : "text-slate-500"].join(" ")}>
                       {currentLimitStatus === "saving" ? "Saving..." : currentLimitStatus === "error" ? "Save failed" : "Applied"}
                     </p>
@@ -396,7 +392,18 @@ export default function Dashboard() {
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-ev-cyan uppercase tracking-widest font-semibold">Power Limit</p>
                   <div className="flex items-baseline gap-2">
-                    <p className="text-lg font-bold text-slate-900 tabular-nums">{powerLimitDraft}W</p>
+                    {editingPowerLimit ? (
+                      <input
+                        type="number" min={POWER_LIMIT_MIN} max={POWER_LIMIT_MAX} step={1}
+                        defaultValue={powerLimitDraft}
+                        className="text-lg font-bold text-slate-900 tabular-nums bg-transparent border-none outline-none w-16 text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        autoFocus
+                        onBlur={(e) => { const v = Math.round(Number(e.target.value)); if (!isNaN(v)) setPowerLimit(v); setEditingPowerLimit(false); }}
+                        onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") setEditingPowerLimit(false); }}
+                      />
+                    ) : (
+                      <p className="text-lg font-bold text-slate-900 tabular-nums" onClick={() => setEditingPowerLimit(true)}>{powerLimitDraft}W</p>
+                    )}
                     <p className={["text-xs", powerLimitStatus === "error" ? "text-red-500" : powerLimitStatus === "saving" ? "text-slate-400" : "text-slate-500"].join(" ")}>
                       {powerLimitStatus === "saving" ? "Saving..." : powerLimitStatus === "error" ? "Save failed" : "Applied"}
                     </p>
@@ -448,6 +455,22 @@ export default function Dashboard() {
                 </div>
 
                 {/* Controls — right side of tab bar */}
+                {tab === "live" && (
+                  <div className="flex items-center gap-0.5">
+                    {([30_000, 60_000, 120_000, 300_000] as const).map((ms) => {
+                      const label = ms === 30_000 ? "30s" : ms === 60_000 ? "1m" : ms === 120_000 ? "2m" : "5m"
+                      return (
+                        <button
+                          key={ms}
+                          onClick={() => setLiveWindowMs(ms)}
+                          className={["text-xs px-2 py-1 rounded transition-colors", liveWindowMs === ms ? "text-slate-700 font-semibold" : "text-slate-400 hover:text-slate-600"].join(" ")}
+                        >
+                          {label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
                 {tab === "history" && selectedTeam && (
                   <ExportMenu
                     frames={historyFrames}
@@ -542,15 +565,10 @@ export default function Dashboard() {
             <p className="text-slate-500 text-xs px-3 pt-1">No teams registered</p>
           ) : (
             teams.filter((team) => team.team_name.toLowerCase().includes(sidebarSearch.toLowerCase())).map((team) => {
-              const bid = team.ecu_serial
-                ? Object.keys(boardData)
-                    .filter(k => parseInt(k.split("-")[1]) === team.ecu_serial)
-                    .sort((a, b) => parseInt(a.split("-")[2] ?? "0") - parseInt(b.split("-")[2] ?? "0"))
-                    .at(-1) ?? null
-                : null;
+              const bid = team.ecu_serial ? (`ECU-${team.ecu_serial}` in boardData ? `ECU-${team.ecu_serial}` : null) : null;
               const tframes = bid ? (boardData[bid] ?? []) : [];
               const last   = tframes.at(-1);
-              const isLive = last && last.avg_voltage > 0 && (Date.now() - (last.received_at_ms ?? 0)) < 5000;
+              const isLive = last && (Date.now() - (last.received_at_ms ?? 0)) < 5000;
               const isDead = tframes.length > 0 && !isLive;
 
               return (

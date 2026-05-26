@@ -9,6 +9,63 @@ import { broadcastAlert } from '../../websocket.js';
 const activeBreaches = new Map();
 const activeCurrentBreaches = new Map();
 
+// ecu_serial → server epoch ms of last received frame
+const lastFrameReceivedAt = new Map();
+
+// Close any open breaches for an ECU when it goes offline.
+// Uses server time for end timestamp since the device is no longer sending.
+function closeBreachesOnDisconnect(ecu_serial) {
+  const nowMs  = Date.now();
+  const nowIso = new Date(nowMs).toISOString();
+
+  if (activeBreaches.has(ecu_serial)) {
+    const breach     = activeBreaches.get(ecu_serial);
+    const durationMs = nowMs - breach.startedMs;
+    updateAlertEnd(breach.alertId, breach.peakPower, nowIso, durationMs);
+    activeBreaches.delete(ecu_serial);
+    broadcastAlert({ type: 'alert', data: getAlertById(breach.alertId) });
+    console.log(`[ECU ${ecu_serial}] Power breach closed on disconnect (${(durationMs / 1000).toFixed(1)}s)`);
+
+    const penaltySeconds = 5 * Math.floor(durationMs / 1000);
+    if (penaltySeconds > 0) {
+      const run = getActiveRunForEcu(ecu_serial, 'efficiency');
+      if (run) {
+        applyPenalty({
+          run_id:       run.id,
+          penalty_type: 'power_zone',
+          value:        penaltySeconds,
+          unit:         'seconds',
+          source:       'auto',
+          note:         `Auto: ${(durationMs / 1000).toFixed(2)}s in penalty zone (device offline), peak ${breach.peakPower.toFixed(0)}W`,
+        });
+      }
+    }
+  }
+
+  if (activeCurrentBreaches.has(ecu_serial)) {
+    const breach     = activeCurrentBreaches.get(ecu_serial);
+    const durationMs = nowMs - breach.startedMs;
+    updateAlertEnd(breach.alertId, breach.peakCurrent, nowIso, durationMs);
+    activeCurrentBreaches.delete(ecu_serial);
+    broadcastAlert({ type: 'alert', data: getAlertById(breach.alertId) });
+    console.log(`[ECU ${ecu_serial}] Current breach closed on disconnect (${(durationMs / 1000).toFixed(1)}s)`);
+  }
+}
+
+// Every 5s: close open breaches for any ECU that hasn't sent a frame in 15s.
+// 15s is safely beyond the 8s synthetic-zero threshold the frontend uses,
+// so by the time this fires the UI already shows the device as disconnected.
+setInterval(() => {
+  const now = Date.now();
+  for (const [ecu_serial, lastMs] of lastFrameReceivedAt) {
+    if (now - lastMs >= 15_000 &&
+        (activeBreaches.has(ecu_serial) || activeCurrentBreaches.has(ecu_serial))) {
+      console.log(`[ECU ${ecu_serial}] No frames for ${((now - lastMs) / 1000).toFixed(0)}s — closing open breaches`);
+      closeBreachesOnDisconnect(ecu_serial);
+    }
+  }
+}, 5_000);
+
 // Frames arrive at 10Hz — each covers 0.1s
 const FRAME_DURATION_HOURS = 0.1 / 3600;
 
@@ -23,40 +80,6 @@ const PENALTY_THRESHOLD_MS = 1000;
 function scaleVoltage(mv)  { return mv  / 1000; }  // mV  → V
 function scaleCurrent(ma)  { return ma  / 1000; }  // mA  → A
 function scalePower(mw)    { return mw  / 1000; }  // mW  → W
-
-// ─── Session tracking ─────────────────────────────────────────────────────────
-// When an ESP32 reboots its uptime counter resets to 0, causing timestamp_ms
-// values that duplicate the previous session.  We detect this by watching for
-// a fresh uptime (< 10 s) after significant prior runtime (> 30 s) and increment
-// the boot_session counter.  The physical ecu_serial never changes — boot_session
-// is a separate field so team→device mappings remain intact across reboots and
-// the frontend can display "ESP-2 (1)" instead of a confusing large serial number.
-//
-// Dump frames sent on reconnection have large uptime values so they will NEVER
-// trigger this check — only a genuine near-zero uptime does.
-//
-// physical_serial → { lastUptime, bootCount }
-const deviceSessions = new Map();
-
-function getBootSession(physical_serial, uptime_ms) {
-  if (!deviceSessions.has(physical_serial)) {
-    deviceSessions.set(physical_serial, { lastUptime: uptime_ms, bootCount: 0 });
-    return 0;
-  }
-
-  const session = deviceSessions.get(physical_serial);
-
-  if (uptime_ms < 10_000 && session.lastUptime > 30_000) {
-    session.bootCount++;
-    console.log(
-      `[ECU ${physical_serial}] Reboot #${session.bootCount} detected ` +
-      `(uptime ${uptime_ms} ms after ${session.lastUptime} ms)`
-    );
-  }
-
-  session.lastUptime = uptime_ms;
-  return session.bootCount;
-}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -94,8 +117,8 @@ function computeAverages(payload) {
   return { scaled_voltage, scaled_current, scaled_power, avg_voltage, avg_current, avg_power, avg_energy };
 }
 
-// timestamp_ms   = device time ms (uptime for real ESP32, epoch ms for simulator) — duration accuracy
-// frameTimestamp = ISO string derived from device epoch ms when available, else server receipt
+// timestamp_ms   = epoch ms from device — used for breach duration accuracy
+// frameTimestamp = ISO string derived from epoch ms
 function checkBreach(ecu_serial, avg_power, avg_current, timestamp_ms, frameTimestamp) {
   const powerLimit   = getPowerLimit(ecu_serial);
   const currentLimit = getCurrentLimit(ecu_serial);
@@ -163,26 +186,26 @@ function checkBreach(ecu_serial, avg_power, avg_current, timestamp_ms, frameTime
   }
 }
 
-function buildFrame(ecu_serial, boot_session, payload, timestamp, timestamp_ms, uptime_ms, received_at_ms) {
+function buildFrame(ecu_serial, payload, timestamp, timestamp_ms, received_at_ms) {
   const { scaled_voltage, scaled_current, scaled_power, avg_voltage, avg_current, avg_power, avg_energy } = computeAverages(payload);
 
   checkBreach(ecu_serial, avg_power, avg_current, timestamp_ms, timestamp);
 
   insertECUFrame({
     ecu_serial,
-    boot_session,
+    boot_session: 0,
     timestamp,
-    uptime_ms:       uptime_ms ?? null,
-    voltage_samples: scaled_voltage,           // stored in V
-    current_samples: scaled_current,           // stored in A
-    power_samples:   scaled_power,             // stored in W (mW → W); null if not provided
+    uptime_ms:       null,
+    voltage_samples: scaled_voltage,
+    current_samples: scaled_current,
+    power_samples:   scaled_power,
     avg_voltage,
     avg_current,
     avg_power,
     avg_energy,
   });
 
-  return { ecu_serial, boot_session, timestamp, timestamp_ms, uptime_ms: uptime_ms ?? null, received_at_ms, avg_voltage, avg_current, avg_power, avg_energy };
+  return { ecu_serial, timestamp, timestamp_ms, received_at_ms, avg_voltage, avg_current, avg_power, avg_energy };
 }
 
 // ─── Public entry point ───────────────────────────────────────────────────────
@@ -190,29 +213,23 @@ function buildFrame(ecu_serial, boot_session, payload, timestamp, timestamp_ms, 
 export function processECUFrame(payload) {
   const { ecu_serial } = payload;
   const received_at_ms = Date.now();
+  lastFrameReceivedAt.set(ecu_serial, received_at_ms);
 
   if (typeof payload.timestamp === 'number') {
-    // Epoch ms (> year 2001) — simulator v3 or NTP-synced device; derive ISO from device value
-    if (payload.timestamp > 1_000_000_000_000) {
-      const timestamp_ms = payload.timestamp;
-      const timestamp    = new Date(timestamp_ms).toISOString();
-      return [buildFrame(ecu_serial, 0, payload, timestamp, timestamp_ms, timestamp_ms, received_at_ms)];
-    }
-    // Real ESP32 — uptime ms (ms since boot); derive ISO from server receipt
-    const uptime_ms    = payload.timestamp;
-    const boot_session = getBootSession(ecu_serial, uptime_ms);
-    const timestamp    = new Date(received_at_ms).toISOString();
-    return [buildFrame(ecu_serial, boot_session, payload, timestamp, uptime_ms, uptime_ms, received_at_ms)];
+    // Epoch ms — all current devices and simulators
+    const timestamp_ms = payload.timestamp;
+    const timestamp    = new Date(timestamp_ms).toISOString();
+    return [buildFrame(ecu_serial, payload, timestamp, timestamp_ms, received_at_ms)];
   }
 
-  // Simulator / NTP device — ISO string timestamp, always boot_session 0
+  // ISO string timestamp — legacy simulator v1 / old devices
   const timestamp    = payload.timestamp;
   const timestamp_ms = new Date(timestamp).getTime();
-  return [buildFrame(ecu_serial, 0, payload, timestamp, timestamp_ms, null, received_at_ms)];
+  return [buildFrame(ecu_serial, payload, timestamp, timestamp_ms, received_at_ms)];
 }
 
-export function getECUHistory({ ecu_serial, boot_session, from, limit } = {}) {
-  return getAllECUFrames({ ecu_serial, boot_session, from, limit });
+export function getECUHistory({ ecu_serial, from, limit } = {}) {
+  return getAllECUFrames({ ecu_serial, from, limit });
 }
 
 export function getECUSerials() {
